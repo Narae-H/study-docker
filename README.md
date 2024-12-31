@@ -134,7 +134,8 @@ EXPOSE 8080
 CMD [서버실행 명령어] 
 ```
 - 예시1: [node.js 프로젝트](#nodejs-프로젝트)
-- 예시2: [SpringBoot 프로젝트]()
+- 예시2: [SpringBoot 프로젝트](#springboot-프로젝트)
+- 예시3: [nginx 서버 - reverse proxy](#nginx)
 <br/>
 
 ## 3. 이미지 생성
@@ -230,7 +231,7 @@ CMD ["node", "server.js"]
 ***- dockerfile 설명***
 - `FROM node:22-slim`: OS & Node.js 설치 명령어
   - `FROM`: dockerfile의 시작을 알림
-  - `node`: 이미지 이름. Docker 프로그램 상단에서 node 검색하여 나온 Docker Official Image 중 나한테 맞는 이미지로 선택.
+  - `node`: 이미지 이름. Docker 프로그램 상단에서 node 검색하여 나온 Docker Official Image의 `Supported tags and respective Dockerfile links` 섹션에서 나한테 맞는 이미지로 선택.
   - `:22-slim`: 버전 명시 부분. `22`는 나의 node.js와 같은 버전인 22버전을 선택했고, `slim`은 필요없는 내용 지운 Debian linux 버전을 선택. (참고로, alpine: 용량 가장 작은 linux )
 <br/>
 
@@ -466,6 +467,115 @@ SpringBoot에서 gradle을 쓰는 경우 이미지 만드는 명령어가 내장
 <br/>
 <br/>
 
+
+# nginx
+`Reverse proxy`로 서버로 들어오는 요청을 중간에 가로채서 컨테이너 간 통신하기 위해 쓰임.<br/>
+<br/>
+<img src="https://codingapple-cdn.b-cdn.net/wp-content/uploads/2024/11/%EC%A0%9C%EB%AA%A9-%EC%97%86%EC%9D%8C-1.png" width="500px" alt="Reverse proxy"/>
+<br/>
+
+## 1. 서버코드 생성
+1. `nginx` 폴더 생성 <br/>
+2. `nginx` 폴더 안에 `myconfig1.conf` 파일 생성 <br/>
+3. `myconfig1.conf` 파일에 아래 설정 붙여넣기. 아래파일은 `nginx.conf` 라는 기본 설정파일의 `http { }` 안에 자동으로 넣어서 실행됨. <br/>
+```conf
+# myconfig1.conf
+
+server {
+  # 누군가가 80번 포트로 들어오면 밑의 내용 실행해라라
+  listen 80; 
+
+  # location / { } 부분은 누가 /로 시작하는 모든 경로로 들어오면 localhost:8080으로 보내라는 뜻
+  location / {
+      proxy_pass http://localhost:8080; 
+
+      # header라는 부분에 IP 주소 등 여러 정보를 채우라는 뜻. 지금은 별 의미없음.
+      proxy_set_header Host $host;
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
+  }
+}
+```
+<br/>
+
+## 2. `Dockerfile` 생성
+```sh
+# Dockerfile
+
+FROM nginx:1.27.3-alpine-slim
+
+COPY ./myconfig1.conf /etc/nginx/conf.d/myconfig1.conf
+RUN rm /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
+```
+
+***- dockerfile 설명***
+- `FROM nginx:1.27.3-alpine-slim`: OS & Nginx 설치 명령어
+  - `FROM`: dockerfile의 시작을 알림
+  - `nginx:1.27.3-alpine-slim`: 이미지 이름:버전전. Docker 프로그램 상단에서 nginx 검색하여 나온 Docker Official Image 중 나한테 맞는 이미지로 선택.
+<br/>
+
+- `COPY ./myconfig1.conf /etc/nginx/conf.d/myconfig1.conf`: myconfig1.conf파일 실행을 하기 위해서 폴더에 복사
+  - `COPY`: 이 명령어 다음 나온 '첫번째 경로의 것'을 '두번째 경로'로 복사.
+  - `./myconfig1.conf`: 첫번째 경로는 내 컴퓨터의 경로를 의미.
+  - `/etc/nginx/conf.d/myconfig1.conf`: 두번째 경로는 가상컴퓨터(이미지 내부파일)의 경로를 의미. `/etc/nginx/conf.d/` 폴더에 넣어줘야 nginx가 알아서 .conf파일을 가져가서 사용함.
+<br/>
+
+- `RUN rm /etc/nginx/conf.d/default.conf`: `/etc/ngingx/conf.d/default.conf(자동생성파일)`이 가끔 먼저 적용되기도 하니 삭제
+  - `RUN`: 이 명령어 다음에 오는 명령어를 실행
+  - `rm`: 삭제(remove)
+  - `/etc/nginx/conf.d/default.conf`: 삭제할 파일
+<br/>
+
+- `EXPOSE 80`: 어떤 포트번호로 열어줄지 알려줌. (실질적으로는 이미지 실행할 때 포트 열어두라고 명령하는데, 이건 일종의 가이드. 포트 설정할 때 헤깔리지말라고)
+  - `EXPOSE`: 이 명령어 다음에 오는 포트로 열어둬야 함.
+  - `80`: 포트넘버
+<br/>
+
+- `CMD ["nginx", "-g", "daemon off;"]`: 서버 실행
+  - `CMD`: 이 명령어 다음에 오는 명령어를 실행해라. 보통 마지막 명령어는 `RUN` 대신에 `CMD`를 씀.
+  - `[]`: `[]`를 안치면 예상치 못한 명령어가 실행될 수 있으므로 RUN 다음엔 오는 명령어는 대괄호로 입력.
+  - `"nginx", "-g", "daemon off;"`: `nginx -g daemon off`란 명령어로 서버를 실행하라는 뜻.
+<br/>
+
+## 3. 이미지 생성
+Dockerfile이 현재 경로가 아니라 다른 경로에 있으므로 마지막에 경로 명시
+
+```sh
+# docker build -t 이미지이름:태그 Dockerfile경로
+docker build -t nginx:1 ./nginx
+```
+<br/>
+
+## 4. 이미지 실행
+[이미지 실행](#4-이미지-실행)
+<br/>
+
+## 5. 서버 접속 확인
+1. [localhost:80](http://localhost:80) 접속 => `502 Bad Gateway`뜸 (이유는 뒤쪽에)<br/>
+
+2. nginx 설정에다가 누가 `80 포트`로 접속하면 [http://localhost:8080](http://localhost:8080)로 보내주라고 코드 짰으니 저번에 만들었던 nodeserver를 8080번 포트로 실행.
+<br/>
+
+**Q. 왜 `502 Bad Gateway`에러가 날까?**
+**A:** 현재 가상 컴퓨터 2대가 띄어져 있고, 내 컴퓨터의 포트도 각각 연결해 둠. <br/>
+왼쪽 nginx 가상컴퓨터에는 "누가 80번 포트로 들어오면 8080포트로 보내기" 라고 코드를 짜놨지만, 왼쪽 nginx 가상컴퓨터에는 8080포트에서 동작중인 프로그램이 없음. <br/>
+`왼쪽과 오른쪽으로 다른 가상 컴퓨터`이기 때문에 서로 독립적으로 움직이므로 내 컴퓨터 80번 포트인 localhost:80으로 들어가도 아무것도 안나오고 에러가 남. <br/>
+<br/>
+<img src="https://codingapple-cdn.b-cdn.net/wp-content/uploads/2024/11/%EA%B7%B8%EB%A6%BC1551.png" width="500px" alt="nginx 서버 구조"/>
+<br/>
+
+**해결방안**
+- 방법1: "누가 80번 포트로 접속하면 다시 올라가서 내 컴퓨터의 8080번 포트로 들어가라"
+- 방법2: 방법1보다 더 안전하고 간단하게 하려면 network라는걸 만들어서 그 안에 가상 컴퓨터를 담아놔도 됨. 같은 network 안에 들어있는 가상 컴퓨터들은 가상IP로 서로 통신이 가능하므로.
+<br/>
+<br/>
+
+
+
 # Container
 ## 구조
 리눅스 OS가 제공하는 이것저것(namespaces + cgroups + unionFS) 기능 섞은 것. 
@@ -545,3 +655,53 @@ docker rm 컨테이너이름 -f
 <br/>
 <br/>
 
+
+# 이미지를 공유(업로드/다운로드)하는 법
+~~USB를 이용하던 이메일을 보내던 자유지만,~~ 우리는 개발자인 만큼 이미지를 호스팅해주는 사이트에 업로드하고 필요할 때 다운로드하는 방법 사용. 훨씬 편리하기도 함.
+- 호스팅 사이트: Docker Hub, AWS ECR, Azure Container Registry 등.
+
+## 이미지 업로드/다운로드
+해당 글에서는 일부 기능을 무료로 사용할 수 있는 `Docker Hub`를 이용하여 이미지 업로드하는 방법 기술.
+
+### 리포지토리 생성
+1. [hub.docker.com](hub.docker.com) 이동
+2. 가입 & 로그인
+3. 메인메뉴에서 `Create repository` 선택. 여기서, Repository란 이미지 보관용 폴더
+4. Repository 이름 입력 ex) myserver
+5. public 선택 (뮤료버전 쓸꺼니깐)
+6. Create
+7. `내아이디/4번에서입력한아이디`가 repository 이름임.
+
+### 이미지 업로드 (docker push)
+1. Docker Desktop App 열기
+2. 왼쪽의 Images 메뉴 선택
+3. 업로드 하고싶은 이미지 오른쪽의 `Push to Docker Hub` 선택 또는 아래 터미널 명령어로 업로드
+```sh
+# 1. 이미지의 이름을 바꾸는 명령어
+# docker tag 이미지이름:태그명 리포지토리이름:태그명작명
+# nodeserver:v1(from)를 naraehh/myserver:v1(to)로 바꿔라 => 이름바뀐 새로운 이미지가 리스트에 보임 (Id는 같으므로 이전과 동일한 이미지. 태그명만 여러개 붙였을 뿐)
+docker tag nodeserver:v1 naraehh/myserver:v1
+
+# 2. 실제로 업로드
+# docker push 리포지토리이름:태그명작명 
+docker push naraehh/myserver:v1
+```
+
+4. [hub.docker.com](hub.docker.com)가서 새로고침하면 방금 업로드한 이미지 확인 가능
+
+<small>이미지 업데이트된거 올리고 싶으면? => 태그명을 다르게 작성해서 이미지 새로 빌드하고 올리면 됨.</small>
+<br/>
+
+### 이미지 다운로드 (docker pull)
+1. 다운로드 하고싶은 이미지 오른쪽의 `Pull` 선택 또는 아래 터미널 명령어로 다운로드드
+```sh
+# docker pull 이미지명:태그
+docker pull naraehh/myserver:v1
+```
+
+## 다른 종류의 이미지도 업로드 하고 싶다면?
+**Q.** 예를 들어 `서버 담은 이미지`, `프론트엔드 담은 이미지`, `DB 담은 이미지` 이런게 있으면 각각 어디에 업로드하는게 좋을까? <br/>
+**A.** 이런 경우엔 각각 별도의 리포지토리를 만들어서 거기에 업로드하는게 깔끔하고 관리쉬움.<br/>
+근데 귀찮아서 혹은 private 리포지토리 하나가지고 계속 쓰고 싶어서 하나의 리포지토리에 태그명만 다르게 해서 쑤셔넣는 경우도 있긴함.
+<br/>
+<br/>
