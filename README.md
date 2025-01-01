@@ -1,4 +1,4 @@
-당 내용은 코딩애플🍎 수업을 듣고 정리한 글입니다.
+당 내용은 [코딩애플🍎](https://codingapple.com/) 수업을 듣고 정리한 글입니다.
 <br/>
 <br/>
 
@@ -471,7 +471,8 @@ SpringBoot에서 gradle을 쓰는 경우 이미지 만드는 명령어가 내장
 # nginx
 `Reverse proxy`로 서버로 들어오는 요청을 중간에 가로채서 컨테이너 간 통신하기 위해 쓰임.<br/>
 <br/>
-<img src="https://codingapple-cdn.b-cdn.net/wp-content/uploads/2024/11/%EC%A0%9C%EB%AA%A9-%EC%97%86%EC%9D%8C-1.png" width="500px" alt="Reverse proxy"/>
+<img src="https://raw.githubusercontent.com/Narae-H/study-docker/refs/heads/main/assets/readme/Reverse%20proxy.png" width="500px" alt="Reverse proxy"/><br/>
+<sup>이미지 출처: [코딩애플](https://codingapple.com/)</sup>
 <br/>
 
 ## 1. 서버코드 생성
@@ -539,7 +540,6 @@ CMD ["nginx", "-g", "daemon off;"]
   - `CMD`: 이 명령어 다음에 오는 명령어를 실행해라. 보통 마지막 명령어는 `RUN` 대신에 `CMD`를 씀.
   - `[]`: `[]`를 안치면 예상치 못한 명령어가 실행될 수 있으므로 RUN 다음엔 오는 명령어는 대괄호로 입력.
   - `"nginx", "-g", "daemon off;"`: `nginx -g daemon off`란 명령어로 서버를 실행하라는 뜻.
-<br/>
 
 ## 3. 이미지 생성
 Dockerfile이 현재 경로가 아니라 다른 경로에 있으므로 마지막에 경로 명시
@@ -555,26 +555,34 @@ docker build -t nginx:1 ./nginx
 <br/>
 
 ## 5. 서버 접속 확인
-1. [localhost:80](http://localhost:80) 접속 => `502 Bad Gateway`뜸 (이유는 뒤쪽에)<br/>
+1. [localhost:80](http://localhost:80) 접속 => `502 Bad Gateway`뜸 (이유는 아래에)<br/>
 
-2. nginx 설정에다가 누가 `80 포트`로 접속하면 [http://localhost:8080](http://localhost:8080)로 보내주라고 코드 짰으니 저번에 만들었던 nodeserver를 8080번 포트로 실행.
+2. nginx 설정에다가 누가 `80 포트`로 접속하면 `[http://localhost:8080](http://localhost:8080)로 보내주라`라고 코드 짰으니 저번에 만들었던 nodeserver를 8080번 포트로 실행.
+<br/>
 <br/>
 
-**Q. 왜 `502 Bad Gateway`에러가 날까?**
-**A:** 현재 가상 컴퓨터 2대가 띄어져 있고, 내 컴퓨터의 포트도 각각 연결해 둠. <br/>
-왼쪽 nginx 가상컴퓨터에는 "누가 80번 포트로 들어오면 8080포트로 보내기" 라고 코드를 짜놨지만, 왼쪽 nginx 가상컴퓨터에는 8080포트에서 동작중인 프로그램이 없음. <br/>
-`왼쪽과 오른쪽으로 다른 가상 컴퓨터`이기 때문에 서로 독립적으로 움직이므로 내 컴퓨터 80번 포트인 localhost:80으로 들어가도 아무것도 안나오고 에러가 남. <br/>
+**Q. 왜 `502 Bad Gateway`에러가 날까?** <br/>
+**A:** 현재 가상 컴퓨터 2대가 띄어져 있고, 내 컴퓨터의 포트로 각각 연결해 둠. <br/>
+왼쪽 nginx 가상컴퓨터에는 "누가 80번 포트로 들어오면 8080포트로 보내기" 라고 코드를 짜놨지만, 왼쪽 nginx 가상컴퓨터에는 8080포트에서 동작 중인 프로그램이 없음. <br/>
+`왼쪽과 오른쪽으로 다른 가상 컴퓨터`이기 때문에 서로 독립적으로 움직이고 내 컴퓨터 80번 포트인 localhost:80으로 들어가도 아무것도 안나오고 에러가 남. <br/>
 <br/>
-<img src="https://codingapple-cdn.b-cdn.net/wp-content/uploads/2024/11/%EA%B7%B8%EB%A6%BC1551.png" width="500px" alt="nginx 서버 구조"/>
+<img src="https://raw.githubusercontent.com/Narae-H/study-docker/refs/heads/main/assets/readme/nginx%20server.png" width="500px" alt="nginx server"/><br/>
+<sup>이미지 출처: [코딩애플](https://codingapple.com/)</sup>
 <br/>
 
 **해결방안**
-- 방법1: "누가 80번 포트로 접속하면 다시 올라가서 내 컴퓨터의 8080번 포트로 들어가라"
-- 방법2: 방법1보다 더 안전하고 간단하게 하려면 network라는걸 만들어서 그 안에 가상 컴퓨터를 담아놔도 됨. 같은 network 안에 들어있는 가상 컴퓨터들은 가상IP로 서로 통신이 가능하므로.
+- 방법1: "누가 80번 포트로 접속하면 다시 올라가서 내 컴퓨터의 8080번 포트로 들어가라"<br/>
 <br/>
+<img src="https://github.com/Narae-H/study-docker/blob/main/assets/readme/connect_virtual_computers1.png?raw=true" width="500px" alt="Reverse proxy"/><br/>
+<sup>이미지 출처: [코딩애플](https://codingapple.com/)</sup>
 <br/>
 
-
+- 방법2: 방법1보다 더 안전하고 간단하게 하려면 `network`라는걸 만들어서 그 안에 가상 컴퓨터를 담아놔도 됨. 같은 network 안에 들어있는 가상 컴퓨터들은 가상IP로 서로 통신이 가능하므로. [Container끼리 통신](#network를-이용한-container끼리-통신) 부분 참고<br/>
+<br/>
+<img src="https://github.com/Narae-H/study-docker/blob/main/assets/readme/connect_virtual_computers2.png?raw=true" width="500px" alt="Reverse proxy"/><br/>
+<sup>이미지 출처: [코딩애플](https://codingapple.com/)</sup>
+<br/>
+<br/>
 
 # Container
 ## 구조
@@ -655,6 +663,143 @@ docker rm 컨테이너이름 -f
 <br/>
 <br/>
 
+# Network를 이용한 Container끼리 통신
+컨테이너는 각각의 독립적인 컴퓨터기때문에 서로 만날 수 없지만, Network를 만들어서 그 안에 집어넣으면 각기 다른 두 컨테이너(ex. `Nginx`와 `Node server(웹서버)`)의 가상 IP 주소를 통해서 통신 가능. <br/>
+
+***Prerequisite***
+1. Docker에 `Node server 이미지`가 있다. ([Node서버 설정](#nodejs-프로젝트)) <br/>
+2. Docker에 `Nginx 이미지`가 있다. ([Nginx서버 설정](#nginx)) <br/>
+<br/>
+
+***Steps***
+1. [Network 생성](#1-network-생성)
+2. [컨테이너를 Network에 넣기](#2-컨테이너를-network에-넣기)
+3. [Nginx, Node Server 둘 다 같은 네트워크에서 띄어져 있는지 확인 ](#3-nginx-node-server-둘-다-같은-네트워크에서-띄어져-있는지-확인)
+4. [컨테이너끼리 통신 테스트 - Docker App 내부에서](#4-컨테이너끼리-통신-테스트---docker-app-내부에서)
+5. [conf 파일 수정하여 웹서버 연동](#5-conf-파일-수정하여-웹서버-연동)
+<br/>
+<br/>
+
+### 1. Network 생성
+컨테이너 통신을 위해서 Network 생성하기 위해 Docker Container App의 terminal에서 아래 명령어 입력 <br/>
+```sh
+# docker network create 네트워크이름
+docker network create mynet1
+
+# Network 목록 조회
+docker network ls
+```
+<br/>
+
+### 2. 컨테이너를 Network에 넣기
+컨테이너 실행할 때 네트워크에 넣어서 실행하기 위해 Docker Container App의 terminal에서 아래 명령어 입력 <br/>
+```sh
+# docker run -d(detached mode) -p(port number) 내포트:컨테이너포트 --network 네트워크이름 --name 컨테이너이름작명 내이미지이름:태그
+#  --network 네트워크이름: "네트워크 안에 담아주세요"란 뜻
+#  --name 컨테이너이름작명: 쉽게 관리하기 위해 컨테이너 이름 짓기기
+
+# 1. webserver(node.js) 서버 띄우기
+docker run -d -p 8080:8080 --network mynet1 --name server-container nodeserver:v1
+
+# 2. nginx 서버 띄우기
+docker run -d -p 80:80 --network mynet1 --name nginx-container nginx:1
+```
+<br/>
+
+### 3. Nginx, Node Server 둘 다 같은 네트워크에서 띄어져 있는지 확인 
+1. Docker Desktop App의 `Container` 메뉴 접속
+2. 컨테이너 선택 > `Inspect` > `Network`
+3. 이름이 `mynet1`(내가 부여한 네트워크이름)인 것과 `IPAddress` 생성 확인
+  ```json
+  "Networks": {
+      "mynet1": {
+        ...
+        "IPAddress": "172.XX.X.X",
+        ...
+      }
+  }
+  ```
+<br/>
+
+### 4. 컨테이너끼리 통신 테스트 - Docker App 내부에서
+컨테이너끼리 통신이 잘되나 확인하려면 하나의 컨테이너로 들어가서 거기다가 다른 컨테이너를 불러보면 됨. <br/>
+`nodeserver의 가상 IP` 확인하고, `nginx` 컨테이너 들어가서 `nodeserver의 가상IP 호출`
+
+  **방법 1**. 터미널로 접속
+  ```sh
+  docker exec -it 컨테이너이름 /bin/sh
+  ```
+
+  **방법 2**. Exec 메뉴 이용
+  ```
+  Container 메뉴 > nginx 컨테이너 선택 > Exec 탭
+  ```
+<br/>
+
+**IP주소로 접속하기**
+```sh
+# curl(접속해라) 아이피주소:포트주소
+curl 172.18.0.3:8080
+
+# 컨테이너 이름으로도 접속가능
+curl server-container:8080
+```
+
+> <details>
+>
+> <summary> <small>`curl: not found` 가 뜬다면?</small> </summary>
+> 컨테이너 이미지에 따라 기본적으로 포함된 패키지가 다름. 예를 들어, Alpine Linux 기반의 이미지는 매우 경량화되어 있으며, curl 같은 유틸리티가 기본적으로 설치되어 있지 않을 수 있음.
+> 컨테이너 내부에서 직접 설치 필요
+>
+> 1. Debian/Ubuntu 기반 이미지
+> ```sh
+> apt-get update && apt-get install -y curl
+> ```
+> 
+> 2. Alpine 기반 이미지
+> ```sh
+> apk add --no-cache curl
+> ```
+> </details>
+
+<br/>
+
+### 5. .conf 파일 수정하여 웹서버 연동
+- `.conf` 파일 수정
+```conf
+# myconfig1.conf 
+
+server {
+  listen 80;
+  location / {
+    # 'http://[nodeserver IP 또는 컨테이너이름]:포트'로 수정
+    proxy_pass http://server-container:8080; 
+    
+    # 이하 동일
+  }
+}
+```
+
+- 이미지 빌드
+```sh
+docker build -t nginx:1 ./nginx
+```
+
+- 컨테이너 전부 삭제 & 이미지 재실행 <br/>
+ 주의: 웹서버가 떠있어야 nginx에서 접속가능하므로 서버 실행할 때 `nodeserver -> nginx `순으로 띄우기
+ ```sh
+ # 1. webserver(node.js) 서버 띄우기
+docker run -d -p 8080:8080 --network mynet1 --name server-container nodeserver:v1
+
+# 2. nginx 서버 띄우기
+docker run -d -p 80:80 --network mynet1 --name nginx-container nginx:1
+ ```
+
+- 접속확인: [localhost:80](http://localhost:80) 접속해서 nodeserver 제대로 뜨는지 확인.
+
+<br/>
+<br/>
+
 
 # 이미지를 공유(업로드/다운로드)하는 법
 ~~USB를 이용하던 이메일을 보내던 자유지만,~~ 우리는 개발자인 만큼 이미지를 호스팅해주는 사이트에 업로드하고 필요할 때 다운로드하는 방법 사용. 훨씬 편리하기도 함.
@@ -705,3 +850,113 @@ docker pull naraehh/myserver:v1
 근데 귀찮아서 혹은 private 리포지토리 하나가지고 계속 쓰고 싶어서 하나의 리포지토리에 태그명만 다르게 해서 쑤셔넣는 경우도 있긴함.
 <br/>
 <br/>
+
+# Volume 사용법과 PostgreSQL DB 띄우기
+DB를 컨테이너로 실행 및 volume 장착
+
+## PostgreSQL 이미지 다운 및 실행
+`PostgreSQL`은 엑셀처럼 테이블에 자료를 저장할 수 있는 관계형데이터베이스 (RDS)
+
+### 1. `Postgres` 이미지 검색 및 다운로드
+```sh
+# docker pull <이미지 이름>:<태그>
+docker pull postgres:17.2-alpine
+```
+
+### 2. 다운로드받은 이미지 실행
+- 설정: POSTGRES_USER(DB 접속 아이디), POSTGRES_PASSWORD(DB접속 패스워드) <br/>
+<img src="" width="500px" alt="docker_db_settings">
+
+<br/>
+
+## 3. DB 확인 (Container 메뉴 > 컨테이너 선택 > Exec 탭)
+```sh
+# DB 접속
+psql -U admin -W
+
+# 데이터베이스 리스트 조회
+\l
+
+# 데이터베이스 접속 
+\c [데이터베이스명]
+
+# 테이블 조회
+\d
+```
+
+문제점: 컨테이너로 디비를 띄우게 되면, 다시 재실행하면 안에있던 내용 초기화 됨.
+데이터를 어떻게 유지할까? => volumn 이용(volumn에 데이터 저장)
+
+Volumn이란? => 폴더와 유사
+컨테이너에 볼륨 장착: 실시간으로 DB에 있는 내용 볼륨에 저장
+
+컨테이너 다시 띄우기. 
+1. container name: db-container
+2. ports: 5432
+3. volumns
+Host Path(Volumn 존재한다면 존재하는 볼륨을, 그게 아니라면 새로운 volumn이름 적으면 새로운 volumn 생성해줌.)
+컨테이너 띄울 때, Volumns에 Host Path(어디에 백업할지) 부분에 `postgres_vol` 쓰고, container path 부분에는 (컨테이너의 어떤 폴더를 백업하지) `/var/lib/postgresql/data` (실제 DB가 저장되는 경로로, DB 종류마다 경로 다름)입력
+5. Enviornment variables
+variable: POSTGRES_USER value: admin   (디비접속아이디)
+variable: POSTGRES_PASSWORD value: qwer1234 (디비접속 패스워드)
+6. RUN
+
+**볼륨 정상 작동하는지 확인** <br/>
+테스트 데이터 만들어서 넣어보기
+1. Container 메뉴 > Container 선택 > Exec 탭
+2. 
+```sh
+# 1. bash터미널 사용
+bash
+
+# 2. DB 접속
+psql -U admin -W
+
+# 3. DB 조회
+\l
+
+# 4. DB 접속
+\c postgres
+```
+
+3. 테이블 생성 및 데이터 입력
+```sql
+-- 테이블 생성
+CREATE table product ( title VARCHAR(100) );
+
+-- 데이터 입력
+INSERT INTO product values('shirt');
+INSERT INTO product values('shirt1');
+
+-- 데이터 조회
+SELECT * from product;
+```
+
+데이터를 저장하는 순간 volumn 폴더에 데이터가 그대로 복사
+volumn에 있는 데이터를 컨테이너에 복사하기
+```sh
+# 컨테이너 띄울 때 볼륨지정
+# docker run -v(볼륨) 볼륨이름:컨테이너경로 이미지이름:버전
+docker run -v postgres_vol:/var/lib/postgresql/data postgres:17.2-alpine
+```
+
+데이터 남아잇는지 확인
+```sh
+bash
+
+psql -U admin -W
+
+\l
+
+\c postgres
+
+\d
+```
+
+```sql
+-- 데이터 조회
+SELECT * from product;
+```
+
+데이터베이스를 컨테이너로 쓰느느 경우가 많이 없음.
+=> 디비는 안정적으로 관리하는게 중요하기 때문에 container 의 특성과 잘 안맞음.
