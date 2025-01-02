@@ -864,14 +864,23 @@ docker pull postgres:17.2-alpine
 ```
 
 ### 2. 다운로드받은 이미지 실행
-- 설정: POSTGRES_USER(DB 접속 아이디), POSTGRES_PASSWORD(DB접속 패스워드) <br/>
-<img src="" width="500px" alt="docker_db_settings">
 
+- GUI로 설정하고 실행
+<img src="https://github.com/Narae-H/study-docker/blob/main/assets/readme/docker_db_env.png?raw=true" width="500px" alt="docker_db_settings">
 <br/>
 
-## 3. DB 확인 (Container 메뉴 > 컨테이너 선택 > Exec 탭)
+- 터미널로 실행
 ```sh
-# DB 접속
+docker run -d --name db-container -e POSTGRES_USER=admin -e POSTGRES_PASSWORD=qwer1234 postgres:17.2-alpine 
+```
+<br/>
+
+### 3. DB 접속
+Dbeaver 같은 프로그램 쓰면 비주얼적으로 쉽게 접속해 볼 수 있고, 아니면 터미널에서 DB 접속도 가능
+
+```sh
+# DB 접속: Container 메뉴 > 컨테이너 선택 > Exec 탭
+# psql -U [user이름] -W
 psql -U admin -W
 
 # 데이터베이스 리스트 조회
@@ -884,28 +893,55 @@ psql -U admin -W
 \d
 ```
 
-문제점: 컨테이너로 디비를 띄우게 되면, 다시 재실행하면 안에있던 내용 초기화 됨.
-데이터를 어떻게 유지할까? => volumn 이용(volumn에 데이터 저장)
+***문제점*** <br/>
+컨테이너로 DB를 띄우고 재실행하면 항상 안에 있던 내용 초기화 되고 DB에 있던 내용도 날라감.
+껐다켜도 데이터를 유지하고 싶으면 데이터를 volume에 저장.
+<br/>
 
-Volumn이란? => 폴더와 유사
-컨테이너에 볼륨 장착: 실시간으로 DB에 있는 내용 볼륨에 저장
+## Volume
+`Volume`이란 데이터를 저장할 수 있는 공간으로 하드디스크에 폴더 하나 만드는 것과 똑같음. 컨테이너에 볼륨 장착하여 실시간으로 DB에 있는 내용 볼륨에 저장가능하고 나중에 컨테이너 띄울 때 볼륨에 있던 데이터를 다시 컨테이너에 집어넣어서 컨테이너 띄우기 가능.
 
-컨테이너 다시 띄우기. 
-1. container name: db-container
-2. ports: 5432
-3. volumns
-Host Path(Volumn 존재한다면 존재하는 볼륨을, 그게 아니라면 새로운 volumn이름 적으면 새로운 volumn 생성해줌.)
-컨테이너 띄울 때, Volumns에 Host Path(어디에 백업할지) 부분에 `postgres_vol` 쓰고, container path 부분에는 (컨테이너의 어떤 폴더를 백업하지) `/var/lib/postgresql/data` (실제 DB가 저장되는 경로로, DB 종류마다 경로 다름)입력
-5. Enviornment variables
-variable: POSTGRES_USER value: admin   (디비접속아이디)
-variable: POSTGRES_PASSWORD value: qwer1234 (디비접속 패스워드)
-6. RUN
+### Volume 생성 방법
+- GUI 이용
+```
+Volumes 메뉴 이동 > Create 버튼으로 볼륨 생성
+```
 
-**볼륨 정상 작동하는지 확인** <br/>
-테스트 데이터 만들어서 넣어보기
-1. Container 메뉴 > Container 선택 > Exec 탭
-2. 
+- 터미널 이용
 ```sh
+# 볼륨 생성
+docker volume create 볼륨이름
+
+# 볼륨 목록 조회
+docker volume ls
+
+# 볼륨 상세 조회
+docker volume inspect 볼륨이름
+
+# 볼륨 삭제
+docker volume rm 볼륨이름
+```
+
+### Volume 장착해서 DB 컨테이너 띄우기
+장착할 Volume이 존재한다면 Volume의 이름을 그게아니라면 새롭게 생성하고 싶은 Volume의 이름을 적으면 됨. <br/>
+`/var/lib/postgresql/data`는 PostgreSQL에서 DB가 저장되어 있는 경로. 경로는 DB 종류마다 다름 <br/>
+
+- GUI 이용 <br/>
+<img src="https://github.com/Narae-H/study-docker/blob/main/assets/readme/docker_db_env2.png?raw=true" width="500px" alt="docker_db_settings2">
+<br/>
+
+- 터미널 이용 <br/>
+```sh
+docker run -v postgres-vol:/var/lib/postgresql/data postgres:17.2-alpine
+```
+
+### 볼륨 정상 작동하는지 확인
+DB 데이터가 볼륨에 복사되었는지 확인하기 위해 몇개의 테스트 데이터 만들어 입력
+
+- DB 컨테이너 접속
+```sh
+# Container 메뉴 > Container 선택 > Exec 탭
+
 # 1. bash터미널 사용
 bash
 
@@ -919,10 +955,10 @@ psql -U admin -W
 \c postgres
 ```
 
-3. 테이블 생성 및 데이터 입력
+- 테이블 생성 및 데이터 입력
 ```sql
 -- 테이블 생성
-CREATE table product ( title VARCHAR(100) );
+CREATE TABLE product ( title VARCHAR(100) );
 
 -- 데이터 입력
 INSERT INTO product values('shirt');
@@ -932,31 +968,356 @@ INSERT INTO product values('shirt1');
 SELECT * from product;
 ```
 
-데이터를 저장하는 순간 volumn 폴더에 데이터가 그대로 복사
-volumn에 있는 데이터를 컨테이너에 복사하기
+- 컨테이너에 volume 붙여서 재실행
 ```sh
 # 컨테이너 띄울 때 볼륨지정
 # docker run -v(볼륨) 볼륨이름:컨테이너경로 이미지이름:버전
 docker run -v postgres_vol:/var/lib/postgresql/data postgres:17.2-alpine
 ```
 
-데이터 남아잇는지 확인
+- 데이터가 볼륨에 복사되어서 남아있는지 확인
 ```sh
+# Container 메뉴 > Container 선택 > Exec 탭
+
+# 1. bash터미널 사용
 bash
 
+# 2. DB 접속
 psql -U admin -W
 
+# 3. DB 조회
 \l
 
+# 4. DB 접속
 \c postgres
-
-\d
 ```
 
 ```sql
 -- 데이터 조회
-SELECT * from product;
+SELECT * FROM product;
+```
+<br/>
+
+> <details>
+> 
+> <summary>서버에서 PostgreSQL에 접속해서 이거저거 SQL 실행하려면?</summary>
+> 
+> 1. 터미널에서 `npm install pg` 입력해서 라이브러리 설치
+> 
+> 2. 아래 코드 작성
+> ```js
+> const { Pool } = require('pg');
+> const pool = new Pool({
+>   host: 'db', //DB컨테이너이름
+>   database: 'postgres', //접속할Database이름
+>   user: 'admin', //유저이름
+>   password: 'qwer1234', //비번
+>   port: 5432,
+> });
+> ```
+> 3. SQL 요청이 필요할때마다 `pool.query()` 사용
+> ```js
+> app.get('/add', async (req, res) => {
+>   try {
+>     await pool.query(`CREATE TABLE IF NOT EXISTS products (
+>       id SERIAL PRIMARY KEY,
+>       title VARCHAR(255),
+>       price INT
+>     );`);
+>     res.send('SQL 실행 완료')
+>   }
+>   catch (err) {
+>     console.log(err)
+>     res.send('실패')
+>   }
+> });
+> ```
+> </details>
+<br/>
+
+## 결론
+- 컨테이너 `데이터를 영구적으로 보존`해야 한다면 `볼륨을 만들어서 장착`. <br/>
+- DB를 컨테이너로 쓰는 경우는 많이 없음. <br/>
+- 컨테이너는 쉽게띄우고, 교체하고, 다른곳으로 옮기고 이런게 장점인데, 데이터베이스는 그런것보다 안정성이 중요해서 데이터베이스 호스팅을 받아서 안전하게 데이터 관리하는게 더 나음. <br/>
+<br/>
+<br/>
+
+# Docker Compose
+- `docker compose` 란? <br/>
+`docker run` 명령어가 길어지면 사용하기가 힘들어지니, 명령어들을 한 파일에 입력해놓고 그걸 실행하는 걸 도와주는 프로그램. 여러개의 컴포넌트를 동시에 작성하는것도 가능. <br/>
+<br/>
+- `service` 란? <br/>
+컨테이너를 어떻게 띄울지 정의하는 일종의 `가이드`. 만약, 컨테이너를 수백개 띄어야한다면 그걸 관리하는 프로그램(kubernetes, AmazonECS, Docker Swarm, Azure Service Fabric)을 사용하게 됨. 이런걸 써도 항상 서비스와 비슷한걸 작성한 뒤에 컨테이너들을 띄우게 됨.
+<br/>
+
+## 사용법
+### 1. `docker-compose.yml` 파일 생성
+- `yml` 파일이란? <br/> 
+데이터 저장하는 용도의 파일형식으로 .json과 유사. yml파일은 `데이터이름: 값` 이런식으로 저장. 하위아이템일 경우 들여쓰기 하면 됨.
+<br/>
+
+### 2. 파일 내용 입력
+하나의 .yml 파일에서 `servers: 하위항목`에 있는 컨테이너들은 자동으로 네트워크 하나 만들어서 그 네트워크에 전부 넣어줌.
+
+```yml
+#docker-compose.yml
+
+# services:
+#   컨테이너이름:
+#     image: 이미지이름             # 이미지를 컨테이너로 띄어줌.
+#     ports:                       # 몇 번 포트 할당할지 정함.
+#       - 내컴퓨터포트:컨테이너포트  
+#     environment:                 # 환경 변수 설정. .env파일 만들어놓고 docker compose 설정파일에서 가져와서 사용도 가능.
+#       - 환경변수이름=값
+#       - 환경변수이름=값
+#     depends_on:                  # 의존성을 작성할 때. 해당 컨테이너 다음에 이 서비스를 실행해라.
+#       - 컨테이너이름
+#     deploy:                      # 서비스마다 같은 컨테이너를 동일한 설정으로 복제해서 띄우기
+#       mode: replicated
+#       replicas: 3
+#     volumes:
+#       - 볼륨이름: /var/lib/postgresql/data
+#     restart: always              # 서버가 죽어도 자동 재시작
+#
+# networks:  # 네트워크 설정. 컨테이너는 여러개의 네트워크에 속해있을 수 있음.
+#   mynet1:
+#   mynet2: 
+#
+# volumes: # volumes 사용하기 위해 설정
+#   test_vol: # volume 이름
+#     external: true
+
+services: 
+  webserver:
+    image: nodeserver:1
+    ports: 
+      - 8080:8080
+    networks:
+      - mynet1
+      - mynet2
+
+  nginx:
+    image: nginx:1
+    ports: 
+      - 80:80
+    networks:
+      - mynet1
+      
+  db:
+    image: postgres:17.2-alpine
+    environment:
+      -POSTGRES_USER=admin
+      -POSTGRES_PASSWORD=qwer1234
+    networks:
+      - mynet2
+
+networks:
+  mynet1:
+  mynet2: 
 ```
 
-데이터베이스를 컨테이너로 쓰느느 경우가 많이 없음.
-=> 디비는 안정적으로 관리하는게 중요하기 때문에 container 의 특성과 잘 안맞음.
+### 3. 실행
+```sh
+docker compose up
+```
+
+### 4. 정지/삭제
+```sh
+# 정지
+docker compose stop
+
+# 삭제
+docker compose down
+```
+<br />
+
+## 컨테이너로 미리보기 띄울 때
+소스코드에 변동사항이 있을 때, 아래의 과정 없이 바로바로 서버에 반영되도록 하고싶다면 `docker-compose.yml`파일에서 설정 추가 필요.
+
+**소스코드 반영**: 총 `3단계` 필요
+1. `docker compose down`
+2. 웹서버 이미지 다시 만듬
+3. `docker compose up`
+<br/>
+<br/>
+
+
+### 방법 1. `build` 옵션
+`docker-compose.yml` 파일에 항상 docker build 하고 나서 컨테이너 띄우라고 `build` 설정 추가하면 됨.
+
+```yml
+## docker-compose.yml 
+
+services:
+  webserver:
+    image: nodeserver:1
+    build: . # 이 부분 추가
+    ports:
+      - 8080:8080
+```
+
+***코드설명***
+- `build: .`: `docker compose up`할 때마다 해당 경로에 있는 도커파일을 가져다가 자동으로 `docker build` 명령을 수행해라.
+  - `build:`: 빌드 명령어
+  - `.`: 도커파일 경로. '.'은 현재경로를 의미
+<br/>
+<br/>
+
+**소스코드 반영**: 총 `2단계` 필요. but, 소스 코드 수정되면 재실행 필요.
+1. `docker compose down`
+2. `docker compose up --build`: build 옵션 추가했을 때는 마지막에 `--build` 옵션 추가
+<br/>
+<br/>
+
+### 방법 2. `watch` 옵션 
+`watch` 특정파일이 변경될 때마다 컨테이너에 바로바로 복사를 해줘서 매번 빌드할 필요가 없음.
+
+```yml
+services:
+  webserver:
+    build: . # 1) 'build' 옵션 추가하고
+    ports:
+    - 8080:8080
+
+    # 2) 'develop: watch:...' 옵션도 추가
+    develop:
+      watch:
+        - action: sync+restart
+          path: .
+          target: /app
+          ignore:
+            - node_modules/
+        - action: rebuild
+          path: package.json 
+```
+***코드설명***
+- `develop:`: 실시간 반영 원하는 컨테이너 하위에 추가 
+  - `watch:`: 특정파일이 변경될 때마다 바로바로 컨테이너에 복사 
+    - `- action:`: 내 코드에 변동사항이 생기면 어떤 `action`을 할지 
+      - `sync`: 변동사항과 컨테이너 sycn를 맞춰라 (변동사항을 컨테이너에 복사해라)
+      - `restart`: 서버 수정사항 반영하기 위해서 서버 재시작
+    - `path:`: 어느 파일들을 감시할지 경로
+      - `.`: 현재경로 (docker-compose.yml과 같은 경로)
+    - `target:`: 컨테이너에 생긴 변동사항을 어디에(to) 붙여 넣을지 경로
+      - `/app`: `/app`에 붙여 넣음.
+    - `ignore:`: 변동사항을 복사할 필요가 없는 파일/폴더. `.dockerignore`파일이 있다면 따로 작성할 필요 없음.
+      - `- node_modules/`:
+    - `- action:`: 내 코드에 변동사항이 생기면 어떤 `action`을 할지. `action`은 여러개 집어 넣을 수 있음.
+      - `rebuild`: path에 있는 파일이나 폴더가 변동사항이 생기면 그냥 아예 docker build를 다시 해달라는 뜻.(즉, 이미지를 다시 만들어라)
+    - `path: package.json`: Node.js로 개발하는 경우, 라이브러리 변동사항이 생기면 이미지를 다시 만드는게 깔끔하기 때문에 package.json 파일 변경되면 rebuild 하라고 코드 짜놓음.
+<br/>
+<br/>
+
+- 소스코드 변경되는지 확인법: `Docker Desktop App` > `Container` 메뉴 > 해당 container 선택 > `Files` 탭 밑에 해당 파일눌러서 코드 변경 되었는지 확인
+
+<br/>
+
+**소스코드 반영**: 총 `2단계` 필요. but, 소스 코드 수정되도 재시작 필요 없음.
+1. `docker compose down`
+2. `docker compose up --watch`: build 옵션 추가했을 때는 마지막에 `--watch` 옵션 추가
+<br/>
+<br/>
+
+> <details>
+> 
+> <summary>node.js의 nodemon 사용</summary>
+>
+> 참고로, nodejs로 서버개발하는 경우에는 `nodemon`같은 라이브러리를 설치해서 `nodemon server.js`라는 명령어로 서버를 띄우면 파일변경이 생길 때마다 재시작을 알아서 해줌.
+> 그래서, 명령어를 node server.js에서 nodemon server.js로 바꾸면 됨.
+> 
+> `Dcokerfile`을 수정해도 되지만, 귀찮다면 `docker-compose.yml`파일에서 `command` 옵션 추가하여 바로 CMD 명령어 덮어 쓰는 것도 가능
+> ```yml
+> services:
+>   webserver:
+>     build: .
+>     ports:
+>     - 8080:8080
+> 
+>     command: ["nodemon", "server.js"] # 이 부분 추가
+>     develop:
+>         (생략)
+> ```
+> </details>
+
+<br/>
+
+## graceful shutdown
+- 프로그램을 종료할 때 필요한 task를 챙겨서 안전하게 종료하는 것. ex) DB 종료
+<br/>
+
+### 종료 코드 작성
+- 컨테이너 끄고 재시작하는데 너무 느린 경우들이 있음. 특히, 웹서버 하나 끄는데 10초넘게 걸린다면 그건 `서버 꺼지는 코드를 짜지않았기 때문`.
+- docker엔진이 컨테이너를 종료시킬 때는 '종료해라'라는 메시지를 컨테이너 프로그램으로 보내고 종료하는 형식인데, 컨테이너 종료 메시지가 없다면 10초 정도를 기다렸다가 강제로 꺼지기 때문.
+
+
+  ```js
+  /** server.js */
+
+  const server = app.listen(어쩌구) 
+
+  // SIGTERM: Docker엔진이 컨테이너 종료하기 위해서 종료 메세지보내는 경우
+  process.on('SIGTERM', () => {
+    server.close(() => {
+      console.log('HTTP server closed')
+    })
+  })
+
+  // SIGINT: 유저가 터미널에서 'ctrl + c` 누르거나 터미널에서 'kill 1' 입력하는 경우
+  process.on('SIGINT', () => {
+    server.close(() => {
+      console.log('HTTP server closed')
+    })
+  }) 
+  ```
+<br/>
+<br/>
+
+# Orchestraion
+MSA (**M**icro **S**ervice **A**rchitecture)가 등장하면서 컨테이너 수가 많아지고 이걸 관리하기 위해서 `orchestration tool` 등장.
+
+- MSA 장점:
+  - 유저가 많이 몰리는 그런 서비스가 있으면 그것만 딱 찝어서 CPU 사용량 늘리고 그럴 수 있어서 자원 사용이 효율적임
+  - 회원기능을 수정했으면 회원기능 서비스만 따로 배포하면 되니까 기능 업데이트도 매우 빨라짐
+
+- MSA 단점:
+  - 마이크로서비스끼리 통신해야하면 그게 좀 귀찮아짐
+  - 마이크로서비스가 많아지면 그걸 관리하는데 시간과 인력이 추가로 필요함
+  - 서버비도 초반엔 비쌈
+
+<br/>
+
+## Orchestration Tools
+### Kubernates
+- Orchestration 툴은 Kubernates가 가장 유명
+- 직접 셋팅하는 것보다 편하게 Kubernates를 사용하기 위해서 등장한 서비스도 있음
+  - Amazon Elastic Kubernates Service
+  - Azure Kubernates Service
+  - Google Kubernetes Engine
+<br/>
+<br/>
+
+### AWS ECS (Elastic Container Service)
+-  AWS에서 만든 orchestration 툴
+<br/>
+<br/>
+
+**용어 정리**
+- `Cluster`: 하나의 프로젝트
+- `Servie`: 하나의 마이크로 서비스
+  - Service를 이용하여 task를 쉽게 복제
+  - 고장난 task는 쉽게 replace.
+- `Task`: 서로 붙어 있어야 할 컨테이너들을 묶는 단위. docker compse와 비슷. 
+  - Task 안에서 통신가능. 볼륨장착, 컨테이너간 통신, 서비스간 통신 가능.
+- `Load balancer`: 유저가 서버에 들어왔을 때 task들에 균등하게 안내해주는 역할
+<br/>
+<br/>
+
+- **ECS 구조** <br/>
+<img src="" alt="aws ecs 구조"><br/>
+<br/>
+
+- **치킨집 프랜차이즈로 비유** <br/>
+<img src="" alt="aws ecs 구조비유"><br/>
+<br/>
+
+
