@@ -1,0 +1,28 @@
+
+services: 
+  nginx:
+    image: nginx:1
+    ports: 
+      - 80:80
+    networks:
+      - mynet1
+
+  webserver:
+    image: nodeserver:1
+    ports: 
+      - 8080:8080
+    networks:
+      - mynet1
+      - mynet2
+      
+  db:
+    image: postgres:17.2-alpine
+    environment:
+      -POSTGRES_USER=admin
+      -POSTGRES_PASSWORD=qwer1234
+    networks:
+      - mynet2
+
+networks:
+  mynet1:
+  mynet2: 

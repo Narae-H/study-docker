@@ -1273,6 +1273,9 @@ services:
 <br/>
 
 # Orchestraion
+여러 개의 컴퓨터 시스템, 애플리케이션 및/또는 서비스를 조율하고 관리하는 것.
+
+## 등장배경
 MSA (**M**icro **S**ervice **A**rchitecture)가 등장하면서 컨테이너 수가 많아지고 이걸 관리하기 위해서 `orchestration tool` 등장.
 
 - MSA 장점:
@@ -1297,27 +1300,162 @@ MSA (**M**icro **S**ervice **A**rchitecture)가 등장하면서 컨테이너 수
 <br/>
 
 ### AWS ECS (Elastic Container Service)
--  AWS에서 만든 orchestration 툴
+-  AWS에서 만든 orchestration 툴. [AWS ECS 자세히]()
 <br/>
 <br/>
 
-**용어 정리**
+# AWS ECS
+AWS ECS (Elastic Container Service)는 AWS에서 만든 orchestration 툴
+
+## 용어 정리
 - `Cluster`: 하나의 프로젝트
 - `Servie`: 하나의 마이크로 서비스
   - Service를 이용하여 task를 쉽게 복제
   - 고장난 task는 쉽게 replace.
 - `Task`: 서로 붙어 있어야 할 컨테이너들을 묶는 단위. docker compse와 비슷. 
   - Task 안에서 통신가능. 볼륨장착, 컨테이너간 통신, 서비스간 통신 가능.
+  - Task 안에서의 서로 `http://localhost:포트`로 통신.
 - `Load balancer`: 유저가 서버에 들어왔을 때 task들에 균등하게 안내해주는 역할
 <br/>
 <br/>
 
-- **ECS 구조** <br/>
-<img src="" alt="aws ecs 구조"><br/>
+### ECS 구조
+<img src="https://github.com/Narae-H/study-docker/blob/main/assets/readme/aws_ecs.png?raw=true" width="500px" alt="aws ecs 구조"><br/>
+<sup>이미지 출처: [코딩애플](https://codingapple.com/)</sup>
 <br/>
 
-- **치킨집 프랜차이즈로 비유** <br/>
-<img src="" alt="aws ecs 구조비유"><br/>
+### 치킨집 프랜차이즈로 비유
+<img src="https://github.com/Narae-H/study-docker/blob/main/assets/readme/aws_ecs_chicken.png?raw=true" width="500px" alt="aws ecs 구조비유"><br/>
+<sup>이미지 출처: [코딩애플](https://codingapple.com/)</sup>
 <br/>
+
+## 사용법
+### 1. AWS ECS 접속
+1.  [AWS ECS](https://ap-northeast-2.console.aws.amazon.com/ecs/v2/clusters?region=ap-northeast-2) 접속 > `region`은 `Seoul` 선택
+
+### 2. Cluster 생성
+클러스터는 프로젝트하나라고 생각하면 되는데, 정확히는 내가 컴퓨터를 몇대나 미리 점유할지 정하는 용도.
+1. `Create cluster` 선택
+<br/>
+<br/>
+
+2. 아래와 동일하게 입력
+  - `Cluster name`: `testCluster`
+  - `Infrastructure`: `AWS Fargate (Serverless)`
+    - `AWS Fargate`: 서버리스 형태로 CPU, RAM을 필요할 때만 꺼내쓰는 방식. 알아서 서버 관리해줌. 대신 EC2보다 20% 정도 더 비쌈.
+    - `Amazon EC2 Instances`: 직접 서버 고르고 관리. 대신 서버 비용은 조금 더 쌈.
+<br/>
+
+3. `Create`
+<br/>
+
+### 3. Task definition
+Task를 어떻게 띄울지 정의하는 파일. 무슨 이미지들을 어떤 포트에 어떤 환경변수를 넣어서 띄울지 작성하는 파일. docker compose와 성격 동일. <br/>
+Cluster에서 예약해놨던 컴퓨터를 task 1개가 얼마나 점유할것(CPU, Memory)인지 결정하는 것이므로 Task의 CPU, Memory의 총합이 이전에 선택한 값을 넘어가면 안됨. 
+
+1. 왼쪽메뉴에서 `Task definitions` 선택 > `Create new task definition` 선택
+2. 아래와 동일하게 입력
+  - `Task definition configuration`
+    - Task definition family: task1
+  - `Infrastructure requirements`
+    - Launch type: AWS Fargate
+    - Operating system/Architecture: Linux/X86_64
+    - Task size: CPU: 1 vCPU, Memory: 2 GB
+    - Task execution role: Create new role
+  - `Container-1`
+    - Container details 
+      - Name: webserver
+      - Image URI: docker.io/내아이디/리포지토리명:태그명 ([docker hub](https://hub.docker.com/)에 올려놓은 이미지)
+    - Container port: remove
+    - Recource allocation limits
+      - CPU: 0.5
+      - Memory hard limit(최대): 1 GB
+      - Memory soft limit(최소): 1 GB
+    - HealthCheck(자동으로 n초마다 특정 페이지 들어가서 정상적으로 접속되는지 확인)
+      - Command: timeout 10s bash -c ': > /dev/tcp/localhost/8080' || exit 1
+  - `Container-2`
+    - Container details 
+      - Name: nginx
+      - Image URI: docker.io/내아이디/리포지토리명:태그명 ([docker hub](https://hub.docker.com/)에 올려놓은 이미지)
+    - Container port: 80
+    - Recource allocation limits
+      - CPU: 0.5
+      - Memory hard limit(최대): 1 GB
+      - Memory soft limit(최소): 1 GB
+    - HealthCheck(자동으로 n초마다 특정 페이지 들어가서 정상적으로 접속되는지 확인)
+      - Command: CMD-SHELL, curl -f http://localhost:80 || exit 1
+
+3. Create
+<br/>
+
+
+### 4. Service 생성
+1회성 작업같은걸 할때는 서비스 없어도 클러스터 사용 가능. 서비스는 어떤 컴퓨터에 task들을 띄울지 결정하는 부분.
+
+1. 왼쪽메뉴에서 `Clusters` 선택 > 생성한 cluster (testCluster) 선택
+2. `Services` 탭 선택> `Create` 선택
+3. 아래와 동일하게 입력
+  - Compute configuration: Launch type (Fargate)
+    - Capacity provider strategy: EC2, Fargate에 task를 분산해서 띄우는 것 가능
+    - Launch type: Fargate 쓴다고 해놨으므로 분산해서 띄울 필요 없음.
+  - Deployment configuration
+    - Application type(task만 실행할지, 아님 task랑 서비스 같이 실행할지): Service
+    - Task definition:
+      - Family: task1(아까 생성해둔 task)
+      - Revision: 4(latest)
+      - Service name: nginx-server-service
+      - Service type: Replica
+      - Desired tasks(task몇 개 띄울지): 1
+    - Deployment options(tasks 수정사항 생겼을 때, 기존 tasks를 어떻게 끄고 새로운 tasks 띄울지 설정)
+      - Deployment type: Rolling update
+        - Rolling update: 수정된 tasks를 먼저띄우고(수정된 tasks와 이전 tasks가 공존하는 상태), 이전 tasks를 하나씩 순차적으로 종료. 간편한데 유저들이 이전 tasks와 수정된 tasks로 골고루 안내되는 상황이 발생할 수 있음.
+        - Blue/green deployment: 수정된 tasks를 띄우고, 한번에 이전 tasks에서 수정된 tasks로 갈아탐.
+  - Service Connect (서비스끼리 통신하기 위해서 서비스에 이름을 지어주는 옵션): User Service Connect 선택
+    - Service Connect Configuration:
+      - Client side only: 지금 만드는 서비스가 다른 서비스에 연결 필요
+      - Client and Server: 다른 서비스도 내 서비스에 연결필요한 경우
+  - Networking
+    - VPC(가상 네트워크): default로 선택되어있는걸로 둠.
+    - Subnets
+    - Security group: Create a new security group
+      - Security group name: ecs-service-sg
+      - Inbound rules for security groups: Customised TCP / TCP / 80 / Anywhere
+    - Public IP(task가 외부와 통신가능, 외부 사이트의 이미지도 받아올 수 있음): enable
+  - Load balancing (유저가 서버에 들어왔을때 균등하게 task들로 나눠줌)
+    - Load balancer type: Application Load Balancer
+    - Container: nginx1 80:80
+    - Application Load balancer: Create a new load balancer
+      - Load balancer name: alb-test
+      - Healthcheck period: 10
+      - Listener: Create a new listener
+        - Port: 80
+        - Protocol: HTTP
+      - Target group: Create a new target group
+        - Target group name: ecs-testCl-testservice
+        - Protocol: HTTP
+
+4. Create
+
+### 5. 사이트 접속
+1. 왼쪽메뉴에서  `Clusters` 선택 > 생성된 cluster 선택 > Service 탭 이동
+2. 서비스의 status가 `Active`(초록색)이면, task가 잘 돌아가는 중.
+3. Load balancer status 부분에서 `로드밸런서 보기` 선택
+4. Load blancer의 DNS주소를 가져와서 브라우저 주소창에 `http://로드밸런서DNS주소` 입력력
+
+### 6. Task update
+1. 코드짠걸 새로 빌드해서 이미지를 어딘가(ex) Docker Hub)에 올림.
+2. 기존에 있던 Task definition을 수정해서 어떤 이미지를 사용할건지 기재
+3. 생성된 Cluster 선택해서 `Service update` 버튼 누르기
+
+### 7. Cluster 삭제
+1. Servie 삭제
+2. Cluster 삭제
+3. Load balancer 삭제
+
+<br/>
+
+
+
+
 
 
