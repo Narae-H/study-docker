@@ -44,7 +44,7 @@ Linux container를 기반으로 만든 OS 레벨 가상화 구현을 도와주�
 <br/>
 
 
-# 설치방법
+## 설치방법
 1. [Docker 설치 사이트](https://www.docker.com/products/docker-desktop/) 접속
 2. 가운데 쯤에서 `Download Docker Desktop` 눌러서 맞는 버전 설치
 
@@ -101,6 +101,15 @@ docker run 이미지이름:태그명
 ```
 
 5. 터미널에서 실행된 것 확인
+
+## Docker Image 태그
+| 버전  | 크기         | 기반 OS  | 패키지 관리자 | 특징                                               | 사용 사례 |
+|-------|------------|---------|--------------|------------------------------------------------|---------|
+| `Alpine` | 5MB 이하    | Alpine Linux | `apk` | - 초경량화 패키지 <br> - glibc 미포함 (musl 사용) | - 초경량 컨테이너 필요할 때 <br/> - 가장 기본에서 원하는 패키지 직접 설치하고 싶을 때 |
+| `Slim`   | 20~50MB   | Debian<sup>1)</sup>  | `apt` | - 불필요한 패키지 제거한 가벼운 Debian 버전 <br> - 일반적인 앱 실행 가능 | - 기본적인 환경을 갖추면서 가벼운 이미지가 필요할 때 |
+| `Full`   | 200MB 이상 | Debian  | `apt` | - 필요한 패키지가 다 포함됨 <br> - 개발 편리하지만 무거움 | - 빠른 개발 & 디버깅이 필요할 때 <br/> - 최적화 없이 바로 사용하고 싶을 때 |
+
+<small>1) Debian: 리눅스 배포판 운영체제</small>
 <br/>
 <br/>
  
@@ -376,63 +385,146 @@ docker init
 <br/>
 
 # SpringBoot 프로젝트
-## 1. 서버코드 생성
+- [Spring Boot with Docker 공식 웹사이트](https://spring.io/guides/gs/spring-boot-docker)
+
+## Docker 이미지 빌드 및 배포하기
+### 1. 서버코드 생성
+짜여진 코드 없다면 [pre-initialized project](https://start.spring.io/) 사용
+
+### 2. `Dockerfile` 생성
+
+1. 프로젝트 루트 디렉토리에 `Dockerfile` 생성: Spring Boot 관련 공식 이미지는 없으므로 `Amazon Corretto` 이미지를 Java 버전 맞춰서 다운로드 하고 필요한 프로그램 설치
+    - [Docker Hub - Amazon Corretto 이미지 리스트](https://hub.docker.com/_/amazoncorretto?uuid=AB617CA7-708C-4BA3-B23D-C5C2BACC79AE)
+    -  Amazon Corretto 이미지 태그 의미:
+        <details>
+        <summary>OS</summary>
+
+          - `al2 / al2-generic`: Amazon Linux 2
+          - `al2023`: Amazon Linux 2023 (최신 배포판)
+          - `alpine`: Alpine Linux (경량)
+          - `debian`: Debian (안정적)
+        </details>
+
+        <details>
+        <summary>Image subtypes(설치된 프로그램)</summary>
+
+          | 태그       | 특징                                                     | 용도                                            | 이미지 크기             |
+          |------------|----------------------------------------------------------|-------------------------------------------------|-------------------------|
+          | `headful` | GUI 라이브러리(AWT, Swing 등) 포함.                         | 데스크탑 애플리케이션에서 GUI가 필요한 환경 사용         | 상대적으로 큼 (GUI 포함)   |
+          | `headless` | GUI 라이브러리 제외.                                        | 서버, 컨테이너 등 GUI가 필요 없는 환경에서 사용          | 경량화 (작은 크기)         |
+          | `jdk`      | 전체 JDK (컴파일러, 디버거 등) 포함.                       | 개발과 빌드 환경, JDK 도구가 필요한 경우               | JRE보다 큼                    |
+          | `slim`     | 최소 OS 기반 이미지로 최적화.                              | 배포, 컨테이너 환경에서 이미지 크기 최소화, 보안 강화      | 매우 경량화됨               |
+        </details>
+
+2. 사용한 빌드 언어에 따라 아래 코드를 `Dockerfile`에 추가
+    <details>
+    <summary> Gradle 사용한 경우 </summary>
+
+      ```sh
+      #  dockerfile
+      FROM amazoncorretto:21.0.4
+      WORKDIR /app
+      COPY . .
+      RUN ./gradlew build
+      CMD ["java", "-jar", "/build/libs/myapp.jar"] 
+      ```
+      <br/>
+
+      ***- dockerfile 설명***
+      - `FROM amazoncorretto:21.0.4`: OS & SpringBoot 설치 명령어
+        - `FROM`: dockerfile의 시작을 알림
+        - `amazoncorretto`: 이미지 이름. Docker 프로그램 상단에서 springboot 검색하여 나온 Docker Official Image 중 나한테 맞는 이미지로 선택.
+        - `:21.0.4`: 버전 명시 부분. `21`은 `Java 21버전`이라는 뜻.
+      <br/>
+
+      - `WORKDIR /app`: 필요한 라이브러리가 설치될 폴더로 이동. 나의 현재 경로의 모든 파일을 가상컴퓨터의 기본 경로로 옮기면 더러우니깐 폴더하나 만들어서 그곳에 담음
+        - `WORKDIR`: 이 명령어 다음으로 오는 폴더로 이동하라는 뜻(cd 명령어와 비슷). 없으면 폴더 만들어줌.
+        - `/app`: 가상컴퓨터의 현재 경로 밑의 app 폴더로 이동해라. (없으면 폴더 만들어서 이동해라)
+      <br/>
+
+      - `COPY . .`: 현재경로에 있는 모든 파일과 폴더들을 가상컴퓨터의 현재경로로 복사
+        - `COPY`: 이 명령어 다음 나온 '첫번째 경로의 것'을 '두번째 경로'로 복사해라.
+        - `.`: 첫번째 `.`은 내 컴퓨터의 경로를 의미.
+        - `.`: 두번째 `.`은 가상컴퓨터(이미지 내부파일)의 경로를 의미. 이전에 WORKDIR을 해서 app폴더로 이동했으므로 여기서 의미하는 가상컴퓨터의 경로는 app임.
+      <br/>
+
+      - `RUN ./gradlew build`: package.json에 기재된 라이브러리를 설치
+        - `RUN`: 이 명령어 다음에 오는 명령어를 실행해라.
+        - `./`: 현재 디렉토리에 있는 실행 파일을 호출
+        - `gradlew`: `Gradle Wrapper`를 실행하여 Gradle 프로젝트에서 로컬에 Gradle을 설치하지 않고도 프로젝트를 빌드할 수 있도록 해줌.
+        - `build`: 빌드하여 `.jar`파일 생성
+      <br/>
+
+      - `CMD ["java", "-jar", "/build/libs/myapp.jar"]`: 서버 실행
+        - `CMD`: 이 명령어 다음에 오는 명령어를 실행해라. 보통 마지막 명령어는 `RUN` 대신에 `CMD`를 씀.
+        - `[]`: `[]`를 안치면 예상치 못한 명령어가 실행될 수 있으므로 RUN 다음엔 오는 명령어는 대괄호로 입력.
+        - `"java"`: Java 실행 명령어.
+        - `"-jar"`: 특정 JAR 파일을 실행. 이 옵션 뒤에 실행할 JAR 파일 경로 지정.
+        - `"/build/libs/myapp.jar"`: 실행할 JAR 파일의 경로. 일반적으로 Gradle로 빌드 된 파일은 `build/libs/` 디렉토리에 저장.
+
+      ***번외***: 사실, Gradle에서는 Dockerfile 자동 생성 가능. SpringBoot에서 gradle을 쓰는 경우 이미지 만드는 명령어가 내장되어 있음
+      ```sh
+      ./gradlew bootBuildImage
+      ```  
+    </details>
+
+    <details>
+    <summary> Maven 사용한 경우 </summary>
+    
+    ```sh
+    # Dockerfile
+
+    # 빌드 스테이지
+    FROM amazoncorretto:17-alpine3.21 AS build
+    RUN apk add --no-cache curl
+
+    WORKDIR /app
+
+    COPY mvnw .
+    COPY .mvn .mvn
+    COPY pom.xml .
+
+    RUN chmod +x mvnw
+
+    RUN ./mvnw dependency:go-offline -B
+
+    COPY . .
+
+    RUN chmod +x ./mvnw
+
+    RUN ./mvnw package -DskipTests
+
+    # Runtime 단계
+    FROM amazoncorretto:17-alpine3.21 AS runtime
+
+    WORKDIR /app
+
+    RUN addgroup -g 1000 worker && \
+        adduser -u 1000 -G worker -s /bin/sh -D worker
+
+    COPY --from=build --chown=worker:worker /app/target/*.jar ./main.jar
+
+    USER worker:worker
+
+    ENV PROFILE=${PROFILE}
+
+    EXPOSE 8080
+
+    ENTRYPOINT ["java", "-Dspring.profiles.active=${PROFILE}", "-jar", "main.jar"]
+    ```  
+    </details>
+
+### 3. 이미지 생성
+[이미지 생성](#3-이미지-생성)
 <br/>
 
-## 2. `Dockerfile` 생성
-```sh
-#  dockerfile
-FROM amazoncorretto:21.0.4
-WORKDIR /app
-COPY . .
-RUN ./gradlew build
-CMD ["java", "-jar", "/build/libs/myapp.jar"] 
-```
-<br/>
-
-***- dockerfile 설명***
-- `FROM amazoncorretto:21.0.4`: OS & SpringBoot 설치 명령어
-  - `FROM`: dockerfile의 시작을 알림
-  - `amazoncorretto`: 이미지 이름. Docker 프로그램 상단에서 springboot 검색하여 나온 Docker Official Image 중 나한테 맞는 이미지로 선택.
-  - `:21.0.4`: 버전 명시 부분. `21`은 `Java 21버전`이라는 뜻.
-<br/>
-
-- `WORKDIR /app`: 필요한 라이브러리가 설치될 폴더로 이동. 나의 현재 경로의 모든 파일을 가상컴퓨터의 기본 경로로 옮기면 더러우니깐 폴더하나 만들어서 그곳에 담음
-  - `WORKDIR`: 이 명령어 다음으로 오는 폴더로 이동하라는 뜻(cd 명령어와 비슷). 없으면 폴더 만들어줌.
-  - `/app`: 가상컴퓨터의 현재 경로 밑의 app 폴더로 이동해라. (없으면 폴더 만들어서 이동해라)
-<br/>
-
-- `COPY . .`: 현재경로에 있는 모든 파일과 폴더들을 가상컴퓨터의 현재경로로 복사
-  - `COPY`: 이 명령어 다음 나온 '첫번째 경로의 것'을 '두번째 경로'로 복사해라.
-  - `.`: 첫번째 `.`은 내 컴퓨터의 경로를 의미.
-  - `.`: 두번째 `.`은 가상컴퓨터(이미지 내부파일)의 경로를 의미. 이전에 WORKDIR을 해서 app폴더로 이동했으므로 여기서 의미하는 가상컴퓨터의 경로는 app임.
-<br/>
-
-- `RUN ./gradlew build`: package.json에 기재된 라이브러리를 설치
-  - `RUN`: 이 명령어 다음에 오는 명령어를 실행해라.
-  - `./`: 현재 디렉토리에 있는 실행 파일을 호출
-  - `gradlew`: `Gradle Wrapper`를 실행하여 Gradle 프로젝트에서 로컬에 Gradle을 설치하지 않고도 프로젝트를 빌드할 수 있도록 해줌.
-  - `build`: 빌드하여 `.jar`파일 생성
-<br/>
-
-- `CMD ["java", "-jar", "/build/libs/myapp.jar"]`: 서버 실행
-  - `CMD`: 이 명령어 다음에 오는 명령어를 실행해라. 보통 마지막 명령어는 `RUN` 대신에 `CMD`를 씀.
-  - `[]`: `[]`를 안치면 예상치 못한 명령어가 실행될 수 있으므로 RUN 다음엔 오는 명령어는 대괄호로 입력.
-  - `"java"`: Java 실행 명령어.
-  - `"-jar"`: 특정 JAR 파일을 실행. 이 옵션 뒤에 실행할 JAR 파일 경로 지정.
-  - `"/build/libs/myapp.jar"`: 실행할 JAR 파일의 경로. 일반적으로 Gradle로 빌드 된 파일은 `build/libs/` 디렉토리에 저장.
-<br/>
-
-## 3. 이미지 생성
+### 4. 이미지 실행
 [이미지 실행](#4-이미지-실행)
 <br/>
 
-## 4. 이미지 실행
-[이미지 실행](#4-이미지-실행)
-<br/>
 
 ## 성능을 높이려면?
-SpringBoot는 `.jar`파일만 있으면 서버 실행가능하므로 .jar 파일만 남겨두고 다 삭제하는 방법을 고려해볼 수 있음.
+Spring Boot는 `.jar`파일만 있으면 서버 실행가능하므로 .jar 파일만 남겨두고 다 삭제하는 방법을 고려해볼 수 있음.
 
 ### multi-stage build
 `FROM`을 여러번 쓰는 것을 `multi-stage build` 라고 하는데 그러면 빌드과정이 필요한 프로젝트들은 이런 식으로 작성해서 용량을 줄이고 보안도 약간 챙길 수 있음.
@@ -458,15 +550,7 @@ COPY --from=build /app/build/libs/*.jar /app/server.jar
 CMD ["java", "-jar", "/app/server.jar"] 
 ```
 <br/>
-
-## 번외: 사실, Dockerfile 자동 생성 가능
-SpringBoot에서 gradle을 쓰는 경우 이미지 만드는 명령어가 내장되어 있음
-```sh
-./gradlew bootBuildImage
-```
 <br/>
-<br/>
-
 
 # nginx
 `Reverse proxy`로 서버로 들어오는 요청을 중간에 가로채서 컨테이너 간 통신하기 위해 쓰임.<br/>
@@ -1300,7 +1384,366 @@ MSA (**M**icro **S**ervice **A**rchitecture)가 등장하면서 컨테이너 수
 <br/>
 
 ### AWS ECS (Elastic Container Service)
--  AWS에서 만든 orchestration 툴. [AWS ECS 자세히]()
+-  AWS에서 만든 orchestration 툴. [AWS ECS 자세히](#aws-ecs)
+<br/>
+<br/>
+
+# AWS Elastic Beanstalk 배포
+
+## 실행환경
+- `Spring Boot 프로젝트 (Maven)`
+- `Docker`: **코드 + 실행 환경을 패키징**하는 기술
+  - 애플리케이션을 컨테이너로 감싸서 어디서든 동일한 환경에서 실행 가능하게 만듦.
+  - Dockerfile을 이용해 이미지를 빌드하고, 이를 EB에서 실행할 수 있음.
+- `GitHub Actions`: : **CI/CD 자동화**를 위해 파이프라인 구축
+  - 코드 푸시할 때 자동으로 Docker 빌드 + EB에 배포
+- `AWS ECR (Elastic Container Registry)`: **Docker 이미지를 저장**하는 서비스
+  - EC2(서버), S3(스토리지), Cloud Watch(모니터링), 로드 밸런서(분산), 오토스케일링 등을 자동으로 설정해 줌.
+  - 애플리케이션을 쉽게 배포할 수 있도록 지원함.
+- `AWS EB (Elastic Beanstalk)`: AWS에서 제공하는 **서버 배포 및 관리 서비스**.
+
+// TODO: 이거에 대해 서로 연결관계를 나중에 이미지로 추가할 수 있음 좋을듯.
+
+<details>
+<summary> CI/CD 파이프라인의 주요 단계 </summary>
+
+- `CI` (Continuous Integration, 지속적 통합): 코드 빌드 & 테스트 자동화
+- `CD` (Continuous Deployment/Delivery, 지속적 배포/전달): 애플리케이션 배포 자동화
+<br/>
+
+  |단계 |설명 |예시|
+  |----|-----|----|
+  |1. 코드 변경 (Commit & Push) |	개발자가 코드를 GitHub에 푸시	| git push origin main|
+  |2. 빌드 (Build)	|Docker 이미지를 생성	|docker build -t my-app . |
+  |3. 테스트 (Test)	|유닛 테스트, 통합 테스트 실행 |	mvn test, npm test|
+  |4. Docker 이미지 푸시	|AWS ECR 또는 Docker Hub에 업로드 |	docker push <ECR_URL>/my-app:latest|
+  |5. 배포 (Deploy)	| Elastic Beanstalk에 배포 |	eb deploy|
+</details>
+
+## 배포방법
+
+### 순서
+1. `계정`
+    1. [필요한 계정 생성](#1-필요한-계정-생성)
+
+2. `소스코드`: Dockerfile 이용하여 패키징
+    1. [`Docker`를 이용하여 어플리케이션 패키징](#2-docker를-이용하여-어플리케이션-패키징)
+    2. [`.dockerignore` 파일 추가](#3-dockerignore-파일-추가)
+    3. [패키징 제대로 됐는지 확인](#4-패키징-제대로-됐는지-확인)
+
+3. `도커 이미지 저장소`: 도커 이미지 저장소인 Elastic Container Registry (ECR) 생성
+
+4. `서버`: 소스코드 배포 및 관리 저장소인 Elastic Beanstalk (EB) 생성
+
+5. `IAM User`: GitHub Actions 파이프라인에서 AWS ECR, EB 연결하기위해 IAM user 생성
+    1. [AWS에서 IAM 인증키 발급](#5-aws에서-iam-인증키-발급)
+    2. [GitHub Actions Secrets에 IAM 인증키 등록](#6-github-actions-secrets에-iam-인증키-등록)
+    3. [GitHub Actions에 IAM 인증 확인](#7-github-actions에-iam-인증-확인)
+
+6. `파이프라인 생성`: GitHub Actions에서 .yml 파일 생성 
+    1. GitHub Action CD 스크립트 작성
+    2. GitHub Actions에 IAM 인증 확인
+
+
+// TODO
+[ ] 아래 링크 참고해서 Spring Boot Application을 파이프라인 구축해서 자동 배포 할 수 있도록 만들기
+
+1. Spring Boot(Maven) 프로젝트 Docker 이미지 빌드 및 배포: https://velog.io/@ggingmin/Spring-BootMaven-%ED%94%84%EB%A1%9C%EC%A0%9D%ED%8A%B8-Docker-%EC%9D%B4%EB%AF%B8%EC%A7%80-%EB%B9%8C%EB%93%9C-%EB%B0%8F-%EB%B0%B0%ED%8F%AC%ED%95%98%EA%B8%B0
+
+2. docker-compose.yml 작성
+https://twosky.tistory.com/55
+https://velog.io/@naninaniyoyoyoyo/%EB%B0%B1%EC%97%94%EB%93%9C-%EB%B0%B0%ED%8F%AC-Docker-AWS-Elastic-Beanstalk-GitHub-Action
+
+GitHub Actions 파일 생성
+https://choi-records.tistory.com/entry/AWS-Docker-Image%EC%99%80-Elastic-Beanstalk%EB%A5%BC-%EC%9D%B4%EC%9A%A9%ED%95%9C-%EA%B0%9C%EB%B0%9C-%ED%99%98%EA%B2%BD-CICD
+Github Action CD 스크립트 작성: https://velog.io/@yyong3519/B%EC%97%90-SpringBoot-%EB%B0%B0%ED%8F%AC2-Github-Action%EC%97%90%EC%84%9C-%EB%B0%B0%ED%8F%AC
+
+
+https://akashsingh.blog/complete-guide-on-deploying-a-docker-application-react-to-aws-elastic-beanstalk-using-docker-hub-and-github-actions
+
+// TODO: 2/13 아래 파일 참고해서 EB에 deploy하는것 수정하기. 지금 디플로이하면 에러남. EB 에서 source 파일 다운로드 해서 보면 Dockerfile.aws.json만 있는데 이게 맞나? 수정 필요할듯. github actions에서 나와있는 에러 확인하고 수정.
+GitHub Actions + Docker + AWS ECR + AWS EB를 활용한 무중단 배포
+https://velog.io/@rudwnd33/zero-downtime-deployment
+
+
+
+### 자세히
+#### 1. 필요한 `계정` 생성
+- GitHub
+- Docker Hub
+- Amazon Web Services (AWS)
+
+#### 2. `Docker`를 이용하여 어플리케이션 패키징
+- [Docker 이미지 빌드 및 배포하기 참고](#docker-이미지-빌드-및-배포하기)
+
+#### 3. `.dockerignore` 파일 추가
+Docker 이미지를 빌드는 과정에는 소스 코드를 복사하는 과정이 필요함. 이 때, 이미지의 용량을 불필요하게 키우거나 보안 측면에 문제를 야기할 수 있는 파일은 이미지 빌드 과정에서 제외필요. 
+
+1. Root 디렉토리에 `.dockerignore` 파일 추가
+
+2. `.dockerignore`에 아래내용 추가
+  ```properties
+  .gradle/
+  build/
+
+  target/
+
+  .idea/
+  *.iml
+  *.iws
+  *.ipr
+  .vscode/
+
+  *.log
+
+  .DS_Store
+  Thumbs.db
+
+  src/main/resources/application-*.yml
+  src/main/resources/application-*.properties
+
+  src/test/
+
+  README.md
+  LICENSE
+  *.md
+
+  .git/
+  .gitignore
+
+  # Dockerfile
+  # docker-compose.yml
+
+  node_modules/
+
+  *.class
+
+  *.jar
+  *.war
+  *.nar
+  *.ear
+  *.zip
+  *.tar.gz
+  *.rar
+
+  hs_err_pid*
+  ```
+
+#### 4. Dockerrun.aws.json파일 생성
+Elastic Beanstalk(EB)에 Elastic Container Registry(ECR)의 이미지를 배포하기 위해 사용하는 파일
+- Dockerfile의 역할: 애플리케이션의 소스 코드로부터 Docker 이미지를 빌드하는 데 사용. 이 파일은 애플리케이션의 종속성, 환경 설정 등을 정의하여 ECR에 푸시할 수 있는 이미지를 생성.
+- Dockerrun.aws.json의 역할: Elastic Beanstalk에 배포할 때 Docker 이미지를 어떻게 실행할지에 대한 설정을 제공. 이 파일은 ECR에 저장된 이미지를 Elastic Beanstalk 환경에서 어떻게 실행할지에 대한 정보를 포함. 
+- `Dockerrun.aws.json` 파일의 버전은 [Dockerrun.aws.json 버전](https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/single-container-docker-configuration.html)내용에 따라서 결정.
+
+1. Root 디렉토리에 `Dockerrun.aws.json` 파일 추가
+
+2. `Dockerrun.aws.json`에 아래내용 추가
+```json
+{
+  "AWSEBDockerrunVersion": "1",
+  "Image": {
+    "Name": "hhlaw-stg/latest",
+    "Update": "true"
+  },
+  "Ports": [
+    {
+      "ContainerPort": 8080,
+      "HostPort": "5000"
+    }
+  ]
+}
+```
+
+#### 4. 패키징 제대로 됐는지 확인
+1. [이미지 생성](#3-이미지-생성)
+2. [이미지 실행](#4-이미지-실행)
+
+#### 3. 도커 이미지 저장소 (ECR) 생성
+1. [AWS ECR (Private repositories)Console](https://console.aws.amazon.com/ecr/) 이동
+2. Create 선택
+3. General settings:
+  - **Repository name**: myapp-stg (원하는 이름 입력)
+  - **Image tag mutability**: Mutable
+  - **Encryption settings**: AES-256
+4. Create
+
+// TODO: 2/14 EB 생성부터 다시 해야함. 너무 느려서 삭제했음. 이번에는 Spot instance말고 On-demand 인스턴스로 만들기
+#### 4. EB 생성
+1. [AWS EB Console](https://ap-southeast-2.console.aws.amazon.com/elasticbeanstalk/) 이동
+2. Create environment 선택
+3. 설정
+  - `Step 1`: Configure environment
+    - **Environment tier**: Web server environment
+    - **Application information**
+      - Application name: myapp-stg 
+    - **Environment information**
+      - Environment name: myapp-stg-env
+    - **Platform**
+      - Platform type: Managed platform
+      - Platform: Docker
+      - Platform branch: Docker running on 64bit Amazon Linux 2023
+      - Platform version: 4.4.3 (Recommended)
+    - **Application code**: Sample application
+    - **Presets**: Single instance (free tier eligible)
+  - `Step 2`: Configure service access
+    - **Service access**
+      - **Service role**: Use an exsiting service role
+      - **Existing service roles**: aws-elasticbeanstalk-service-role
+      - **EC2 instance profile**: aws-elasticbeanstalk-ec2-role
+  - `Step 3`: Set up networking, database, and tags - optional -> skip! 
+  - `Step 4`: Configure instance traffic and scaling - optional
+    - **Instances**
+      - **Instance metadata service (IMDS)**: Deactivated 선택
+    - **Capacity**
+      - **Environment type**: Single Instance
+      - **Fleet composition**: On-Demand instance
+      - **Architecture**: x86_64
+      - **Instance types**: t3a.nano (가장싼거 아무거나 [인스턴스 가격표](https://aws.amazon.com/ec2/pricing/on-demand/))
+  - `Step 5`: Configure updates, monitoring, and logging - optional -> skip!
+4. 생생 된 Environment의 도메인 눌러서 실행해서 화면 제대로 뜨나 확인(정상적으로 설정됐다면 **Congratulations!** 뜸.)  
+
+
+#### 5. AWS에서 IAM 인증키 발급
+AWS 서비스가 아닌 GitHub Actions를 통해 EB 명령을 하고자 한다면 권한이 필요.
+
+1. [AWS IAM > Users](https://console.aws.amazon.com/iamv2/home#/users)로 이동
+2. **Create user** 선택
+3. `Step 1`. Specify user details: 
+    - **User name**: github-actions-deploy
+    - **Provide user access to the AWS Management Console - optional** 선택 > **I want to create an IAM user** 선택
+4. `Step 2`. Set Permissions:
+    - **Permissions options**: **Attach policies directly** 선택
+    - **Permissions policies**: **AmazonEC2ContainerRegistryFullAccess** (ECR 접근), **AdministratorAccess-AWSElasticBeanstalk** 선택 (EB 배포)
+5. `Step 3`. Review and create:
+    - Tags: Name/eb-github-actions-deploy
+6. `Step 4`. Retrieve password:
+    - **.csv** 파일도 다운받아 두기
+7. 생성된 user 선택
+8. Summary에 **Create access key** 선택
+9. third-party service 선택 
+10. Access key, Secret access key 메모해두기
+
+#### Role에 권한 추가 부여
+1. IAM 접속
+2. Access Management > Roles
+3. 리스트에서 `aws-elasticbeanstalk-service-role` 선택
+4. Permissions > Add permissions > Attach Permissions > `AmazonEC2ContainerRegistryReadOnly` 선택 > Add permissions
+
+#### 6. GitHub Actions Secrets에 IAM 인증키 등록
+1. CI/CD 구축할 Github 리포지토리로 이동
+2. **Settings** > **Secrets and variables** > **Actions** 로 이동
+3. **New repository secret** 선택하고 아래 값 추가:
+  - AWS_ACCESS_KEY_ID: IAM 생성 시 받은 Access Key ID
+  - AWS_SECRET_ACCESS_KEY: IAM 생성 시 받은 Secret Key
+  - AWS_ACCOUNT_ID: AWS 계정 ID (AWS 우측 상단의 로그인 된 내 아이디 화살표 누르면 확인 가능. '-' 없이 숫자만 입력)
+
+#### 7. GitHub Actions에 IAM 인증 확인
+1. CI/CD 구축할 Github 리포지토리로 이동
+2. Actions 탭 선택 > `set up a workflow yourself` 선택
+3. `aws-iam-test.yml`이름으로 파일 생성 
+4. 아래 코드 붙여넣기
+```yaml
+name: AWS IAM Access Key Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-iam-access-key:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-southeast-2
+
+      - name: Verify AWS Identity
+        # 명령어를 실행하여 현재 인증된 IAM 사용자의 정보를 출력
+        run: |
+          aws sts get-caller-identity  
+```
+5. Commit changes
+6. CI/CD 구축할 Github 리포지토리 > Actions 로 이동
+7. 방금 전 만든 워크플로우 왼쪽 메뉴에서 선택 > Run Workflow
+8. 실행 결과에서 `Verify AWS Identity` 부분에서 UserId, Account 보인다면 성공
+
+
+#### 7. Dockerrun.aws.json 파일 정의
+Dockerrun.aws.json 파일은 Docker 컨테이너 세트를 Elastic Beanstalk 애플리케이션으로 배포하는 방법을 설명하는 Elastic Beanstalk 고유의 JSON 파일
+
+
+
+#### 8. GitHub Action CD 스크립트 작성
+1. GitHub [Marketplace](https://github.com/marketplace)로 이동
+2. `Beanstalk Deploy` 검색 > 선택
+3. User latest version 선택 > 내용 복사
+4. CI/CD 구축할 Github 리포지토리 > Actions 탭 > New Workflow
+5. `eb-deploy.yml`이름으로 파일 생성 
+6. 아래 코드 붙여넣기
+```yaml
+name: Deploy to Elastic Beanstalk
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Login to AWS ECR
+        run: |
+          aws ecr get-login-password --region ap-southeast-2 | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-southeast-2.amazonaws.com
+
+      - name: Generate Image Tag
+        run: echo "IMAGE_TAG=$(date +%Y%m%d%H%M%S)" >> $GITHUB_ENV
+
+      - name: Build and Tag Docker Image
+        run: |
+          docker build -t my-app:${IMAGE_TAG} .
+          docker tag my-app:${IMAGE_TAG} ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-southeast-2.amazonaws.com/my-app:${IMAGE_TAG}
+          docker tag my-app:${IMAGE_TAG} ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-southeast-2.amazonaws.com/my-app:latest
+
+      - name: Push Docker Image to ECR
+        run: |
+          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-southeast-2.amazonaws.com/my-app:${IMAGE_TAG}
+          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-southeast-2.amazonaws.com/my-app:latest
+
+      - name: Deploy to Elastic Beanstalk
+        uses: einaregilsson/beanstalk-deploy@v22
+        with:
+          application_name: "my-app"
+          environment_name: "my-app-env"
+          version_label: "${{ env.IMAGE_TAG }}"
+          region: "ap-southeast-2"
+          aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          use_existing_version_if_available: true
+```
+- [Login to AWS ECR](https://github.com/marketplace/actions/amazon-ecr-login-action-for-github-actions) 
+- [Set Timezone](https://github.com/marketplace/actions/set-timezone)
+
+#### 9. 최종테스트
+1. CI/CD 구축할 Github 리포지토리 > Actions 로 이동
+2. eb-deploy.yml 옆의 Run Workflow
+
+
+그 다음에, ECR에 이미지를 푸시한 후, Dockerrun.aws.json을 통해 Beanstalk에서 이미지를 가져오면 됨.
+ 
+### 5. GitHub Actions를 이용하여 이미지 생성하고 Docker Hub/AWS ECR 에 저장
+
+### 6. 저장된 이미지를 AWS Elastic Beanstalk에 빌드
+
+
+
 <br/>
 <br/>
 
@@ -1453,6 +1896,23 @@ Cluster에서 예약해놨던 컴퓨터를 task 1개가 얼마나 점유할것(C
 3. Load balancer 삭제
 
 <br/>
+<br/>
+
+# `ECS` vs `Elastic Beanstalk +Docker` 차이점 요약
+| 기능               | AWS ECS (Fargate)                         | Elastic Beanstalk (Docker)       |
+|--------------------|-----------------------------------------|---------------------------------|
+| 이미지 저장소     | AWS ECR                                  | Docker Hub 또는 AWS ECR         |
+| 로드 밸런서       | ALB, NLB (수동 설정 필요)               | 기본 제공 (ELB)                 |
+| 오토 스케일링     | 수동/자동 컨테이너 개수 조정 가능       | 간단한 설정으로 자동 스케일링 지원 |
+| 배포 방식         | AWS Fargate 또는 EC2 기반으로 컨테이너 배포 <br/>  Task 정의 → 서비스 → 클러스터 | 간단한 Dockerrun.aws.json 배포 |
+| CI/CD        | CodePipeline, GitHub Actions             | GitHub Actions, Beanstalk CLI  |
+| 유연성            | 고급 네트워크 및 보안 설정 가능         | 제한적 커스터마이징  |
+| 운영방식 | 복잡한 마이크로서비스 아키텍처 (MSA)    | 단일 애플리케이션         |
+| 적합한 사용 사례      | 여러개의 마이크로서비스 + 세밀한 설정 | 단일 컨테이너 + 빠르고 쉽게 배포  |
+- MSA로 변경해야 할 경우 나중에 ECS로 쉽게 전환할 수 있음! 
+
+
+
 
 
 
