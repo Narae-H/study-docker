@@ -121,6 +121,7 @@ Back-end 코드 작성
 
 ## 2. `Dockerfile` 생성
 서버 하나 개발하는데는 여러가지 라이브러리가 필요하고, 그걸 다 쓰긴엔 오류날 확률도 높고, 귀찮고, 힘들고, 버전도 하나 하나 맞춰야 함. 때문에, 설정 파일을 복사해서 거기서 필요한 라이브러리를 알아서 설치하라고 명령하는 `Dockerfile` 파일을 생성하고, 그 안에 서버 종류에 따라 아래의 명령어와 매칭되는 명령어를 순차적으로 입력.
+
 ```sh
 # Dockerfile
 
@@ -1420,63 +1421,54 @@ MSA (**M**icro **S**ervice **A**rchitecture)가 등장하면서 컨테이너 수
   |5. 배포 (Deploy)	| Elastic Beanstalk에 배포 |	eb deploy|
 </details>
 
-## 배포방법
+## 기본 배포 (셋팅 + 워크플로우 실행) 
 
 ### 순서
-1. `계정`
-    1. [필요한 계정 생성](#1-필요한-계정-생성)
+1. `계정`생성<br/>
+  1-1. [필요한 계정 생성](#1-1-필요한-계정-생성)
 
-2. `소스코드`: Dockerfile 이용하여 패키징
-    1. [`Docker`를 이용하여 어플리케이션 패키징](#2-docker를-이용하여-어플리케이션-패키징)
-    2. [`.dockerignore` 파일 추가](#3-dockerignore-파일-추가)
-    3. [패키징 제대로 됐는지 확인](#4-패키징-제대로-됐는지-확인)
+2. `Dockerfile` 이용하여 패키징 <br/>
+  2-1. [`Docker`를 이용하여 어플리케이션 패키징](#2-1-docker를-이용하여-어플리케이션-패키징) <br/>
+  2-2. [`.dockerignore` 파일 추가](#2-2-dockerignore-파일-추가) <br/>
+  2-3. [패키징 제대로 됐는지 확인](#2-3-패키징-제대로-됐는지-확인) <br/>
 
-3. `도커 이미지 저장소`: 도커 이미지 저장소인 Elastic Container Registry (ECR) 생성
+3. 도커 이미지 저장소인 Elastic Container Registry (`ECR`) 생성 <br/>
+  3-1. [ECR 생성](#3-1-도커-이미지-저장소-ecr-생성) <br/>
 
-4. `서버`: 소스코드 배포 및 관리 저장소인 Elastic Beanstalk (EB) 생성
+4. 소스코드 배포 및 관리 저장소인 Elastic Beanstalk (`EB`) 생성 <br/>
+  4-1. [EB 생성](#4-1-eb-생성) <br/>
 
-5. `IAM User`: GitHub Actions 파이프라인에서 AWS ECR, EB 연결하기위해 IAM user 생성
-    1. [AWS에서 IAM 인증키 발급](#5-aws에서-iam-인증키-발급)
-    2. [GitHub Actions Secrets에 IAM 인증키 등록](#6-github-actions-secrets에-iam-인증키-등록)
-    3. [GitHub Actions에 IAM 인증 확인](#7-github-actions에-iam-인증-확인)
+5. GitHub Actions에서 AWS ECR, EB 연결하기 위해 `IAM User` 생성 및 권한부여 <br/>
+  5-1. [IAM User 생성](#5-1-iam-user-생성) <br/>
+  5-2. [Role에 권한 부여](#5-2-role에-권한-부여) <br/>
 
-6. `파이프라인 생성`: GitHub Actions에서 .yml 파일 생성 
-    1. GitHub Action CD 스크립트 작성
-    2. GitHub Actions에 IAM 인증 확인
+6. GitHub Actions Secrets에 `IAM 인증키 등록` 및 확인 <br/>
+  6-1. [Secrets에 IAM 인증키 등록](#6-1-github-actions-secrets에-iam-인증키-등록) <br/>
+  6-2. [GitHub Actions에서 AWS ECR, EB에 접근 가능한지 확인](#6-2-github-actions에-iam-인증-확인) <br/>
 
+7. EB에 ECR이미지 가져와서 배포할 수 있도록하는 파일(`Dokerrun.aws.json`) 생성 <br/>
+  7-1. [Dokerrun.aws.json 파일 생성](#7-1-dockerrunawsjson파일-생성) <br/>
 
-// TODO
-[ ] 아래 링크 참고해서 Spring Boot Application을 파이프라인 구축해서 자동 배포 할 수 있도록 만들기
+8. 민감한 정보를 GitHub Secrets에 숨김 (Optional) <br/>
+  8-1. [민감한 정보를 GitHub Secrets에 추가](#8-1-민감한-정보를-github-secrets에-추가-optional) <br/>
 
-1. Spring Boot(Maven) 프로젝트 Docker 이미지 빌드 및 배포: https://velog.io/@ggingmin/Spring-BootMaven-%ED%94%84%EB%A1%9C%EC%A0%9D%ED%8A%B8-Docker-%EC%9D%B4%EB%AF%B8%EC%A7%80-%EB%B9%8C%EB%93%9C-%EB%B0%8F-%EB%B0%B0%ED%8F%AC%ED%95%98%EA%B8%B0
+9. CD 실행을 위한 스크립트(`eb-deploy.yml`) 작성 <br/>
+  9-1. [GitHub Action CD 스크립트 작성 (eb-deploy.yml)](#9-1-github-action-cd-스크립트-작성-eb-deployyml) <br/>   
 
-2. docker-compose.yml 작성
-https://twosky.tistory.com/55
-https://velog.io/@naninaniyoyoyoyo/%EB%B0%B1%EC%97%94%EB%93%9C-%EB%B0%B0%ED%8F%AC-Docker-AWS-Elastic-Beanstalk-GitHub-Action
+10. 워크플로우 파일 실행 <br/>
+  10-1. [워크플로우 파일(eb-deploy.yml) 실행](#10-1-eb-deployyml-실행) <br/>
+<br/>
 
-GitHub Actions 파일 생성
-https://choi-records.tistory.com/entry/AWS-Docker-Image%EC%99%80-Elastic-Beanstalk%EB%A5%BC-%EC%9D%B4%EC%9A%A9%ED%95%9C-%EA%B0%9C%EB%B0%9C-%ED%99%98%EA%B2%BD-CICD
-Github Action CD 스크립트 작성: https://velog.io/@yyong3519/B%EC%97%90-SpringBoot-%EB%B0%B0%ED%8F%AC2-Github-Action%EC%97%90%EC%84%9C-%EB%B0%B0%ED%8F%AC
-
-
-https://akashsingh.blog/complete-guide-on-deploying-a-docker-application-react-to-aws-elastic-beanstalk-using-docker-hub-and-github-actions
-
-// TODO: 2/13 아래 파일 참고해서 EB에 deploy하는것 수정하기. 지금 디플로이하면 에러남. EB 에서 source 파일 다운로드 해서 보면 Dockerfile.aws.json만 있는데 이게 맞나? 수정 필요할듯. github actions에서 나와있는 에러 확인하고 수정.
-GitHub Actions + Docker + AWS ECR + AWS EB를 활용한 무중단 배포
-https://velog.io/@rudwnd33/zero-downtime-deployment
-
-
-
-### 자세히
-#### 1. 필요한 `계정` 생성
+### 자세히 - 스텝 별로 자세히 설명
+#### 1-1. 필요한 `계정` 생성
 - GitHub
 - Docker Hub
 - Amazon Web Services (AWS)
 
-#### 2. `Docker`를 이용하여 어플리케이션 패키징
+#### 2-1. `Docker`를 이용하여 어플리케이션 패키징
 - [Docker 이미지 빌드 및 배포하기 참고](#docker-이미지-빌드-및-배포하기)
 
-#### 3. `.dockerignore` 파일 추가
+#### 2-2. `.dockerignore` 파일 추가
 Docker 이미지를 빌드는 과정에는 소스 코드를 복사하는 과정이 필요함. 이 때, 이미지의 용량을 불필요하게 키우거나 보안 측면에 문제를 야기할 수 있는 파일은 이미지 빌드 과정에서 제외필요. 
 
 1. Root 디렉토리에 `.dockerignore` 파일 추가
@@ -1498,9 +1490,6 @@ Docker 이미지를 빌드는 과정에는 소스 코드를 복사하는 과정�
 
   .DS_Store
   Thumbs.db
-
-  src/main/resources/application-*.yml
-  src/main/resources/application-*.properties
 
   src/test/
 
@@ -1529,36 +1518,11 @@ Docker 이미지를 빌드는 과정에는 소스 코드를 복사하는 과정�
   hs_err_pid*
   ```
 
-#### 4. Dockerrun.aws.json파일 생성
-Elastic Beanstalk(EB)에 Elastic Container Registry(ECR)의 이미지를 배포하기 위해 사용하는 파일
-- Dockerfile의 역할: 애플리케이션의 소스 코드로부터 Docker 이미지를 빌드하는 데 사용. 이 파일은 애플리케이션의 종속성, 환경 설정 등을 정의하여 ECR에 푸시할 수 있는 이미지를 생성.
-- Dockerrun.aws.json의 역할: Elastic Beanstalk에 배포할 때 Docker 이미지를 어떻게 실행할지에 대한 설정을 제공. 이 파일은 ECR에 저장된 이미지를 Elastic Beanstalk 환경에서 어떻게 실행할지에 대한 정보를 포함. 
-- `Dockerrun.aws.json` 파일의 버전은 [Dockerrun.aws.json 버전](https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/single-container-docker-configuration.html)내용에 따라서 결정.
-
-1. Root 디렉토리에 `Dockerrun.aws.json` 파일 추가
-
-2. `Dockerrun.aws.json`에 아래내용 추가
-```json
-{
-  "AWSEBDockerrunVersion": "1",
-  "Image": {
-    "Name": "hhlaw-stg/latest",
-    "Update": "true"
-  },
-  "Ports": [
-    {
-      "ContainerPort": 8080,
-      "HostPort": "5000"
-    }
-  ]
-}
-```
-
-#### 4. 패키징 제대로 됐는지 확인
+#### 2-3. 패키징 제대로 됐는지 확인
 1. [이미지 생성](#3-이미지-생성)
 2. [이미지 실행](#4-이미지-실행)
 
-#### 3. 도커 이미지 저장소 (ECR) 생성
+#### 3-1. 도커 이미지 저장소 (ECR) 생성
 1. [AWS ECR (Private repositories)Console](https://console.aws.amazon.com/ecr/) 이동
 2. Create 선택
 3. General settings:
@@ -1567,8 +1531,7 @@ Elastic Beanstalk(EB)에 Elastic Container Registry(ECR)의 이미지를 배포�
   - **Encryption settings**: AES-256
 4. Create
 
-// TODO: 2/14 EB 생성부터 다시 해야함. 너무 느려서 삭제했음. 이번에는 Spot instance말고 On-demand 인스턴스로 만들기
-#### 4. EB 생성
+#### 4-1. EB 생성
 1. [AWS EB Console](https://ap-southeast-2.console.aws.amazon.com/elasticbeanstalk/) 이동
 2. Create environment 선택
 3. 설정
@@ -1598,22 +1561,23 @@ Elastic Beanstalk(EB)에 Elastic Container Registry(ECR)의 이미지를 배포�
       - **Environment type**: Single Instance
       - **Fleet composition**: On-Demand instance
       - **Architecture**: x86_64
-      - **Instance types**: t3a.nano (가장싼거 아무거나 [인스턴스 가격표](https://aws.amazon.com/ec2/pricing/on-demand/))
+      - **Instance types**: t3a.micro (싼거 아무거나 [인스턴스 가격표](https://aws.amazon.com/ec2/pricing/on-demand/))
   - `Step 5`: Configure updates, monitoring, and logging - optional -> skip!
-4. 생생 된 Environment의 도메인 눌러서 실행해서 화면 제대로 뜨나 확인(정상적으로 설정됐다면 **Congratulations!** 뜸.)  
+4. 생생 된 Environment의 도메인 눌러서 실행해서 화면 제대로 뜨나 확인(정상적으로 설정됐다면 **Congratulations!** 뜸.)
 
-
-#### 5. AWS에서 IAM 인증키 발급
-AWS 서비스가 아닌 GitHub Actions를 통해 EB 명령을 하고자 한다면 권한이 필요.
+#### 5-1. IAM User 생성
+GitHub Actions를 통해 ECR, EB에 명령을 하고자 한다면 로그인 할 수 있는 사용자(User) 필요.
 
 1. [AWS IAM > Users](https://console.aws.amazon.com/iamv2/home#/users)로 이동
 2. **Create user** 선택
 3. `Step 1`. Specify user details: 
-    - **User name**: github-actions-deploy
+    - **User name**: eb-github-actions-deploy
     - **Provide user access to the AWS Management Console - optional** 선택 > **I want to create an IAM user** 선택
 4. `Step 2`. Set Permissions:
     - **Permissions options**: **Attach policies directly** 선택
-    - **Permissions policies**: **AmazonEC2ContainerRegistryFullAccess** (ECR 접근), **AdministratorAccess-AWSElasticBeanstalk** 선택 (EB 배포)
+    - **Permissions policies**: 아래 2개 권한 선택
+      - AmazonEC2ContainerRegistryFullAccess (ECR 접근)
+      - AdministratorAccess-AWSElasticBeanstalk 선택 (EB 배포)
 5. `Step 3`. Review and create:
     - Tags: Name/eb-github-actions-deploy
 6. `Step 4`. Retrieve password:
@@ -1623,21 +1587,23 @@ AWS 서비스가 아닌 GitHub Actions를 통해 EB 명령을 하고자 한다�
 9. third-party service 선택 
 10. Access key, Secret access key 메모해두기
 
-#### Role에 권한 추가 부여
-1. IAM 접속
+#### 5-2 Role에 권한 부여
+Elastic Beanstalk (EB) 환경에서 Elastic Container Registry(ECR)에 저장된 Docker 이미지를 가져오기 위해 권한 부여
+
+1. [AWS IAM > Users](https://console.aws.amazon.com/iamv2/home#/users)로 이동
 2. Access Management > Roles
 3. 리스트에서 `aws-elasticbeanstalk-service-role` 선택
 4. Permissions > Add permissions > Attach Permissions > `AmazonEC2ContainerRegistryReadOnly` 선택 > Add permissions
 
-#### 6. GitHub Actions Secrets에 IAM 인증키 등록
+#### 6-1. GitHub Actions Secrets에 IAM 인증키 등록
 1. CI/CD 구축할 Github 리포지토리로 이동
 2. **Settings** > **Secrets and variables** > **Actions** 로 이동
 3. **New repository secret** 선택하고 아래 값 추가:
-  - AWS_ACCESS_KEY_ID: IAM 생성 시 받은 Access Key ID
-  - AWS_SECRET_ACCESS_KEY: IAM 생성 시 받은 Secret Key
-  - AWS_ACCOUNT_ID: AWS 계정 ID (AWS 우측 상단의 로그인 된 내 아이디 화살표 누르면 확인 가능. '-' 없이 숫자만 입력)
+    - AWS_ACCESS_KEY_ID: IAM 생성 시 받은 Access Key ID
+    - AWS_SECRET_ACCESS_KEY: IAM 생성 시 받은 Secret Key
+    - AWS_ACCOUNT_ID: AWS 계정 ID (AWS 우측 상단의 로그인 된 내 아이디 화살표 누르면 확인 가능. '-' 없이 숫자만 입력)
 
-#### 7. GitHub Actions에 IAM 인증 확인
+#### 6-2. GitHub Actions에 IAM 인증 확인
 1. CI/CD 구축할 Github 리포지토리로 이동
 2. Actions 탭 선택 > `set up a workflow yourself` 선택
 3. `aws-iam-test.yml`이름으로 파일 생성 
@@ -1668,81 +1634,232 @@ jobs:
 5. Commit changes
 6. CI/CD 구축할 Github 리포지토리 > Actions 로 이동
 7. 방금 전 만든 워크플로우 왼쪽 메뉴에서 선택 > Run Workflow
-8. 실행 결과에서 `Verify AWS Identity` 부분에서 UserId, Account 보인다면 성공
+8. 마지막 명령 블럭인 `Verify AWS Identity`에서 UserId, Account 보인다면 성공
 
+#### 7-1. Dockerrun.aws.json파일 생성
+Elastic Beanstalk(EB)가 Elastic Container Registry(ECR)에 있는 Docker 컨테이너를 배포할 때 사용하는 구성파일
 
-#### 7. Dockerrun.aws.json 파일 정의
-Dockerrun.aws.json 파일은 Docker 컨테이너 세트를 Elastic Beanstalk 애플리케이션으로 배포하는 방법을 설명하는 Elastic Beanstalk 고유의 JSON 파일
+1. 루트 디렉토리에 `Dockerrun.aws.json` 파일 추가
 
-
-
-#### 8. GitHub Action CD 스크립트 작성
-1. GitHub [Marketplace](https://github.com/marketplace)로 이동
-2. `Beanstalk Deploy` 검색 > 선택
-3. User latest version 선택 > 내용 복사
-4. CI/CD 구축할 Github 리포지토리 > Actions 탭 > New Workflow
-5. `eb-deploy.yml`이름으로 파일 생성 
-6. 아래 코드 붙여넣기
-```yaml
-name: Deploy to Elastic Beanstalk
-
-on:
-  push:
-    branches:
-      - main
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v3
-
-      - name: Login to AWS ECR
-        run: |
-          aws ecr get-login-password --region ap-southeast-2 | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-southeast-2.amazonaws.com
-
-      - name: Generate Image Tag
-        run: echo "IMAGE_TAG=$(date +%Y%m%d%H%M%S)" >> $GITHUB_ENV
-
-      - name: Build and Tag Docker Image
-        run: |
-          docker build -t my-app:${IMAGE_TAG} .
-          docker tag my-app:${IMAGE_TAG} ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-southeast-2.amazonaws.com/my-app:${IMAGE_TAG}
-          docker tag my-app:${IMAGE_TAG} ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-southeast-2.amazonaws.com/my-app:latest
-
-      - name: Push Docker Image to ECR
-        run: |
-          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-southeast-2.amazonaws.com/my-app:${IMAGE_TAG}
-          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-southeast-2.amazonaws.com/my-app:latest
-
-      - name: Deploy to Elastic Beanstalk
-        uses: einaregilsson/beanstalk-deploy@v22
-        with:
-          application_name: "my-app"
-          environment_name: "my-app-env"
-          version_label: "${{ env.IMAGE_TAG }}"
-          region: "ap-southeast-2"
-          aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          use_existing_version_if_available: true
+2. `Dockerrun.aws.json`에 아래 내용 추가 <br/>
+파일의 버전(AWSEBDockerrunVersion)은 ['Dockerrun.aws.json 버전'](https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/single-container-docker-configuration.html) 참고하여 선택.
+```json
+{
+  "AWSEBDockerrunVersion": "1",
+  "Image": {
+    "Name": "<AWS_ACCOUNT_ID>.dkr.ecr.ap-southeast-2.amazonaws.com/myapp-stg/latest",
+    "Update": "true"
+  },
+  "Ports": [
+    {
+      "ContainerPort": 8080,
+      "HostPort": 5000
+    }
+  ]
+}
 ```
-- [Login to AWS ECR](https://github.com/marketplace/actions/amazon-ecr-login-action-for-github-actions) 
-- [Set Timezone](https://github.com/marketplace/actions/set-timezone)
+***- Dockerrun.aws.json 설명***
+- `AWSEBDockerrunVersion`: Dockerrun 파일 형식의 버전
+- `Image`: Docker 이미지 정보
+  - `Name`: 이미지의 이름을 지정. `ECR URI:태그`의 값을 가짐.
+  - `Update`: EB 배포 시마다 해당 이미지를 최신으로 업데이트하기 위해 `true` 작성
+- `Ports`
+  - `ContainerPort`: Docker 컨테이너 내부에서 애플리케이션이 실행되는 포트. 즉, Spring Boot 애플리케이션이 컨테이너 안에서 8080 포트로 요청을 수신 
+  - `HostPort`: EB 인스턴스(호스트)에서 외부 트래픽을 수신하는 포트입니다. 일반적으로 Nginx와 같은 리버스 프록시가 외부 요청을 받아 내부의 컨테이너로 전달할 때 5000 포트를 사용. 
+<br/>
 
-#### 9. 최종테스트
+#### 8-1. 민감한 정보를 GitHub Secrets에 추가 (optional)
+GitHub Secrets을 사용해서 `.properties`에 있는 민감한 정보(ex. 비번)를 숨김. <br/>
+예를 들어, application-secure.propertis 안에 있는 정보는 민감한 정보로 GitHub에 푸시하지 않음. 이 정보들은 서버 배포를 할 때 필요하므로 GitHub Repository에 올려놓는게 아니라 비밀저장소(GitHub Secrets)에 저장을 해야 함.
+
+1. CI/CD 구축할 Github 리포지토리로 이동
+2. **Settings** > **Secrets and variables** > **Actions** 로 이동
+3. **New repository secret** 선택하고, (application-secure.propertis)데이터 추가. 나중에 GitHub Action 스크립트 작성할 때, 해당 데이터 불러와서 추가예정. <br/>
+  예시:
+    - MAIL_HOST: smtp.office365.com
+    - MAIL_PORT: 587
+    - MAIL_USERNAME: <User Name>
+    - MAIL_PASSWORD: <Your Password>
+<br/>
+
+#### 9-1. GitHub Action CD 스크립트 작성 (eb-deploy.yml)
+GitHub에 코드가 push되면 자동으로 빌드하고 AWS EB서버에 deploy 되도록 스크립트 작성.
+
+1. 프로젝트에 `.github`, `.github\workflows` 폴더 생성하고, 그 아래에 `eb-deploy.yml`파일 생성 <br/>
+    ```
+    📂 your_project
+    ├─ 📁 .github
+    │  ├─ 📁 workflows 
+    │  │  └─ 📄 eb-deploy.yml
+    ```
+2. 아래 코드 붙여 넣기
+  ```yml
+  name: Deploy to Elastic Beanstalk
+
+  on:
+    push:
+      branches:
+        - main
+
+  env:
+    AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY_ID }}
+    AWS_ACCESS_SECRET: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    AWS_REGION: ap-southeast-2
+    REPOSITORY: myapp-stg  
+    REGISTRY: ''
+    IMAGE_TAG: ''
+
+  jobs:
+    deploy:
+      runs-on: ubuntu-latest
+
+      steps:
+        - name: Checkout Repository
+          uses: actions/checkout@v3
+
+        - name: Create application-secure.properties file
+          run: |
+            cd ./src/main/resources
+            touch ./application-secure.properties
+            echo "spring.mail.host=${{ secrets.MAIL_HOST }}" >> ./application-secure.properties
+            echo "spring.mail.port=${{ secrets.MAIL_PORT }}" >> ./application-secure.properties
+            echo "spring.mail.username=${{ secrets.MAIL_USERNAME }}" >> ./application-secure.properties
+            echo "spring.mail.password=${{ secrets.MAIL_PASSWORD }}" >> ./application-secure.properties
+          
+        - name: Configure AWS credentials
+          uses: aws-actions/configure-aws-credentials@v4
+          with:
+            aws-access-key-id: ${{ env.AWS_ACCESS_KEY }}
+            aws-secret-access-key: ${{ env.AWS_ACCESS_SECRET }}
+            aws-region: ${{ env.AWS_REGION }}
+        
+        - name: Login to AWS ECR
+          id: login-ecr
+          uses: aws-actions/amazon-ecr-login@v2
+          with:
+            mask-password: 'true'
+      
+        - name: Generate REGISTRY environment variable
+          run: echo "REGISTRY=${{ steps.login-ecr.outputs.registry }}" >> $GITHUB_ENV
+
+        - name: Set Timezone
+          uses: MathRobin/timezone-action@v1.1
+          with:
+            timezoneLinux: 'Australia/Sydney'
+            timezoneMacos: 'Australia/Sydney'
+            timezoneWindows: 'AUS Eastern Standard Time'
+
+        - name: Generate MAGE_TAG environment variable
+          run: echo "IMAGE_TAG=$(date +%Y-%m-%d_%H-%M-%S)" >> $GITHUB_ENV
+
+        - name: Build and Tag Docker Image
+          run: |
+            docker build -t ${{ env.REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }} -t ${{ env.REGISTRY }}/${{ env.REPOSITORY }}:latest .
+
+        - name: Push Docker Image to ECR
+          run: |
+            docker push ${{ env.REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
+            docker push ${{ env.REGISTRY }}/${{ env.REPOSITORY }}:latest
+
+        - name: Package Dockerrun.aws.json
+          run: |
+            mkdir -p deploy
+            cp Dockerrun.aws.json deploy/Dockerrun.aws.json
+            cd deploy && zip -r hhlaw.zip .
+
+        - name: Deploy to Elastic Beanstalk
+          uses: einaregilsson/beanstalk-deploy@v22
+          with:
+            aws_access_key: ${{ env.AWS_ACCESS_KEY }}
+            aws_secret_key: ${{ env.AWS_ACCESS_SECRET }}
+            application_name: 'myapp-stg'
+            environment_name: 'myapp-stg-env'
+            version_label: ${{ github.run_number }}
+            region: ${{ env.AWS_REGION }}
+            deployment_package: deploy/myapp.zip
+            use_existing_version_if_available: true 
+  ```
+***- eb-deploy.yml 설명*** <br/>
+GitHub Actions를 이용해 Spring Boot 애플리케이션을 Docker 이미지로 빌드하고, AWS ECR에 푸시한 후, Elastic Beanstalk(EB)에 배포하는 전체 CI/CD 파이프라인을 구성
+
+- `on`: GitHub Actions 워크플로우를 실행할 트리거(이벤트)를 지정.
+  - `push`: GitHub에 push 될 때 워크플로우 실행. push 외에도 pull_request, schedule, relese 등 있음. 
+    - `branches`: 어떤 브랜치에 이벤트가 일어날 때 실행 할 것인지를 지정. 여기서는 `main` 브랜치.
+- `env`: 전역 환경 변수로 jobs 섹션에서 공통으로 쓰기 위해서 선언. 
+  - `AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY_ID }}`: GitHub Secrets에서 AWS_ACCESS_KEY_ID를 가져와서 AWS_ACCESS_KEY에 저장
+  - `AWS_ACCESS_SECRET: ${{ secrets.AWS_SECRET_ACCESS_KEY }}`: GitHub Secrets에서 AWS_SECRET_ACCESS_KEY를 가져와서 AWS_ACCESS_SECRET에 저장
+  - `AWS_REGION: ap-southeast-2`: AWS_REGION 변수에 "ap-southeast-2" 라는 문자열 저장
+  - `REPOSITORY: myapp-stg`: REPOSITORY 변수에 "myapp-stg"라는 문자열 저장
+  - `REGISTRY: ''`: REGISTRY 변수는 빈문자열로 초기화
+  - `IMAGE_TAG: ''`: REGISTRY 변수는 빈문자열로 초기화
+- `jobs`: GitHub Actions 워크플로우 내에서 실행할 작업 목록을 정의하는 부분. 각각의 step은 순차적으로 수행
+  - `deploy`: 어떤 플랫폼에서 배포할지 정의
+    - `runs-on: ubuntu-latest`: GitHub에서 제공하는 최신 Ubuntu 호스트를 사용해서 job을 실행. [runner 버전 확인](https://docs.github.com/en/actions/using-github-hosted-runners/using-github-hosted-runners/about-github-hosted-runners#standard-github-hosted-runners-for-public-repositories)
+    - `steps`: 순차적으로 실행될 작업 정의
+      - `name`: 각 단계(step)에 대한 설명(라벨)을 지정
+      - `id`: 단계에 고유한 식별자를 부여. 이를 통해 이후 단계에서 해당 단계의 출력(output) 값을 참조가능
+      - `uses`: GitHub Actions에서 미리 만들어진 액션([Marketplace](https://github.com/marketplace)에서 제공하는 액션)을 호출할 때 사용
+      - `with`: 액션(uses)에 전달할 입력 인자를 지정
+      - `run`: 셸 명령어나 스크립트를 직접 실행할 때 사용 <br/>
+      <br/>
+      - 각각의 step 설명
+        - `Step 1: Checkout Repository`: 해당 리포지토리의 소스 코드가 워크플로우를 실행하는 러너의 파일 시스템으로 복사. 
+          - `actions/checkout@v3`: [GitHub Marketplace](https://github.com/marketplace/actions/checkout)
+        - `Step 2: Create application-secure.properties file`: 민감한 정보를 GitHub secrets로 부터 가져와서 application-secure.properties 파일을 현재 실행중인 러너의 디렉토리에 생성
+          - `|`: 셀 스크립트를 여러줄 실행하기 위해 작성
+          - `cd ./src/main/resources`: src/main/resources 위치로 이동
+          - `touch ./application-secure.properties`: 현재 위치에서 application-secure.properties 파일 생성
+          - `echo "내용" >> 파일이름`: `파일이름`에 `내용`을 작성
+            - `echo "spring.mail.host=${{ secrets.MAIL_HOST }}" >> ./application-secure.properties`: 로컬 실행 환경과 동일한 application-sercure.properties를 만들도록 키=값 형태로 작성하고, 현재 실행 중인 러너의 application-secure.properties에 저장
+        - `Step 3: Configure AWS credentials`: AWS CLI 및 이후의 AWS 관련 액션들이 사용할 수 있도록 AWS 자격증명을 설정
+          - `aws-actions/configure-aws-credentials@v4`: [GitHub Marketplace](https://github.com/marketplace/actions/configure-aws-credentials-action-for-github-actions)
+        - `Step 4: Login to AWS ECR`: ECR에 로그인하여 Docker 이미지를 푸시할 수 있도록 인증을 진행
+          - `id: login-ecr`: 출력 값엔 ECR의 레지스트리 URL 포함. 다른 단계에서 사용하기 위해 login-ecr변수에 값 저장.
+          - `aws-actions/amazon-ecr-login@v2`: [GitHub Marketplace](https://github.com/marketplace/actions/amazon-ecr-login-action-for-github-actions)
+        - `Step 5: Generate REGISTRY environment variable`: 이전 단계에서 로그인 후 얻은 registry 값을 $GITHUB_ENV 파일에 기록하여, 이후 단계에서 전역 환경 변수 REGISTRY로 사용할 수 있게 함.
+        - `Step 6: Set Timezone`: 컨테이너 실행 환경의 타임존을 Australia/Sydney로 설정
+          - `uses: MathRobin/timezone-action@v1.1`: [GitHub Marketplace](https://github.com/marketplace/actions/set-timezone)
+        - `Step 7: Generate IMAGE_TAG environment variable`: 현재 날짜와 시간을 기반으로 고유한 Docker 이미지 태그의 버전 이름을 생성하고 $GITHUB_ENV 파일에 기록
+        - `Step 8: Build and Tag Docker Image`: 현재 디렉터리를 빌드 컨텍스트로 하여 Docker 이미지를 빌드
+          - `docker build`: 도커 이미지 빌드
+          - `-t 이미지:이미지태그`: 위의 코드 처럼 여러 개의 태그를 한번에 부여 가능. 
+            - 여기서는 2개의 이미지 태그를 부여. 하나는 고유태그(IMAGE_TAG)로 버전 관리에 사용하고, 다른 하나는 latest태그로 항상 최신 이미지를 나타냄.
+        - `Step 9: Push Docker Image to ECR`: 빌드된 Docker 이미지를 AWS ECR에 푸시하여 저장소에 업로드
+          - `docker push 이미지:이미지태그`: Dokcer 이미지를 ECR 저장소에 올리는 명령어
+        - `Step 10: Package Dockerrun.aws.json`: EB 배포를 위한 ZIP 패키지를 생성
+          - `mkdir -p deploy`:
+            - mkdir: 디렉토리 생성 (make directory)
+            - -p: 상위 디렉터리가 존재하지 않을 경우 함께 생성
+            - deploy: deploy 라는 이름의 디렉토리 생성
+          - `cp 현재경로 복사할경로`
+            - cp: 복사 (copy)
+            - Dockerrun.aws.json: 현재 경로에 있는 Dockerrun.aws.json를 찾음
+            - deploy/Dockerrun.aws.json: 현재실행중인 러너의 deploy 디렉토리 경로
+          - `cd deploy && zip -r myapp.zip .`
+            - cd deploy: deploy 디렉토리로 이동(cd: change directory)
+            - &&: 그리고
+            - zip -r myapp.zip .: 해당 디렉터리 내의 모든 파일과 폴더를 재귀적으로(-r 옵션) myapp.zip이라는 이름의 ZIP 파일로 압축
+        - `Step 11: Deploy to Elastic Beanstalk`: 최종적으로 EB에 배포 
+          - `einaregilsson/beanstalk-deploy@v22`: [GitHub Marketplace](https://github.com/marketplace/actions/beanstalk-deploy)
+          - with:
+            - `version_label`: 배포 버전 라벨로 GitHub Actions의 실행 번호를 사용 (자동 증가)
+
+#### 10-1. eb-deploy.yml 실행
 1. CI/CD 구축할 Github 리포지토리 > Actions 로 이동
-2. eb-deploy.yml 옆의 Run Workflow
+2. eb-deploy.yml 옆의 Run Workflow 또는 코드 변경하여 GitHub에 push
 
+<details>
+<summary>EB에서 코드 에러 났을 때 에러 확인</summary>
 
-그 다음에, ECR에 이미지를 푸시한 후, Dockerrun.aws.json을 통해 Beanstalk에서 이미지를 가져오면 됨.
- 
-### 5. GitHub Actions를 이용하여 이미지 생성하고 Docker Hub/AWS ECR 에 저장
+1. 서버 올리는데 에러 <br/>
+에러위치: /var/log/eb-engine.log
 
-### 6. 저장된 이미지를 AWS Elastic Beanstalk에 빌드
+2. 코드에러 <br/>
+EB > Environment > Logs
+</details> 
 
-
+## GitHub 브랜치에 따라 워크플로우 실행
+main 브랜치에 push 됐을때 만 실행 
 
 <br/>
 <br/>
