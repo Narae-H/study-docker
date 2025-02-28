@@ -69,7 +69,7 @@ Linux container를 기반으로 만든 OS 레벨 가상화 구현을 도와주�
 - 장점: 환경 맞추기 쉽고, 내 프로그램을 다른 곳에서 실행하기 쉬움.
 
 
-## 실행방법
+## 실행 방법
 이미 올라와 있는 이미지 실행해보자 <br/>
 
 ### 방법 1. GUI 이용하여 실행
@@ -1526,9 +1526,9 @@ Docker 이미지를 빌드는 과정에는 소스 코드를 복사하는 과정�
 1. [AWS ECR (Private repositories)Console](https://console.aws.amazon.com/ecr/) 이동
 2. Create 선택
 3. General settings:
-  - **Repository name**: myapp-stg (원하는 이름 입력)
-  - **Image tag mutability**: Mutable
-  - **Encryption settings**: AES-256
+    - **Repository name**: myapp-stg (원하는 이름 입력)
+    - **Image tag mutability**: Mutable
+    - **Encryption settings**: AES-256
 4. Create
 
 #### 4-1. EB 생성
@@ -1765,7 +1765,7 @@ GitHub에 코드가 push되면 자동으로 빌드하고 AWS EB서버에 deploy 
           run: |
             mkdir -p deploy
             cp Dockerrun.aws.json deploy/Dockerrun.aws.json
-            cd deploy && zip -r hhlaw.zip .
+            cd deploy && zip -r myapp.zip .
 
         - name: Deploy to Elastic Beanstalk
           uses: einaregilsson/beanstalk-deploy@v22
@@ -1858,10 +1858,136 @@ GitHub Actions를 이용해 Spring Boot 애플리케이션을 Docker 이미지�
 EB > Environment > Logs
 </details> 
 
+// TODO: 이 부분 여기에 추가하는게 맞을까?
 ## GitHub 브랜치에 따라 워크플로우 실행
-main 브랜치에 push 됐을때 만 실행 
+Git Flow strategy에 따라서, main, develop, features 브랜치를 운영한다고 할 때 `eb-deploy.yml` 파일
+```yml
+name: Deploy to Elastic Beanstalk
+on:
+  push:
+    branches:
+      - main
+      - develop
 
-<br/>
+env:
+  AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_ACCESS_SECRET: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  AWS_REGION: ap-southeast-2
+  REPOSITORY: myapp-stg  
+  REGISTRY: ''
+  IMAGE_TAG: ''
+  LATEST_TAG: ''
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Create application-secure.properties file
+        run: |
+          cd ./src/main/resources
+          touch ./application-secure.properties
+          echo "spring.mail.host=${{ secrets.MAIL_HOST }}" >> ./application-secure.properties
+          echo "spring.mail.port=${{ secrets.MAIL_PORT }}" >> ./application-secure.properties
+          echo "spring.mail.username=${{ secrets.MAIL_USERNAME }}" >> ./application-secure.properties
+          echo "spring.mail.password=${{ secrets.MAIL_PASSWORD }}" >> ./application-secure.properties
+        
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ env.AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ env.AWS_ACCESS_SECRET }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Login to AWS ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          mask-password: 'true'
+    
+      - name: Generate REGISTRY environment variable
+        run: echo "REGISTRY=${{ steps.login-ecr.outputs.registry }}" >> $GITHUB_ENV
+
+      - name: Set Timezone
+        uses: MathRobin/timezone-action@v1.1
+        with:
+          timezoneLinux: 'Australia/Sydney'
+          timezoneMacos: 'Australia/Sydney'
+          timezoneWindows: 'AUS Eastern Standard Time'
+
+      - name: Generate IMAGE_TAG environment variable
+        run: echo "IMAGE_TAG=$(date +%Y-%m-%d_%H-%M-%S)" >> $GITHUB_ENV
+
+      - name: Generate IMAGE_TAG and LATEST_TAG environment variables
+        run: |
+          if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
+            echo "IMAGE_TAG=prod-$(date +%Y-%m-%d_%H-%M-%S)" >> $GITHUB_ENV
+            echo "LATEST_TAG=latest" >> $GITHUB_ENV
+          elif [ "${GITHUB_REF}" = "refs/heads/develop" ]; then
+            echo "IMAGE_TAG=staging-$(date +%Y-%m-%d_%H-%M-%S)" >> $GITHUB_ENV
+            echo "LATEST_TAG=staging" >> $GITHUB_ENV
+          fi  
+
+      - name: Push Docker Image to ECR
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+        run: |
+          docker push ${{ env.REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
+          docker push ${{ env.REGISTRY }}/${{ env.REPOSITORY }}:${{ env.LATEST_TAG }}
+
+      - name: Package Dockerrun.aws.json
+        run: |
+          mkdir -p deploy
+          cp Dockerrun.aws.json deploy/Dockerrun.aws.json
+          cd deploy && zip -r myapp.zip .
+      
+      - name: Deploy to Elastic Beanstalk Staging
+        if: github.ref == 'refs/heads/develop'
+        uses: einaregilsson/beanstalk-deploy@v22
+        with:
+          aws_access_key: ${{ env.AWS_ACCESS_KEY }}
+          aws_secret_key: ${{ env.AWS_ACCESS_SECRET }}
+          application_name: 'myapp-stg'
+          environment_name: 'myapp-stg-env'
+          version_label: ${{ github.run_number }}
+          region: ${{ env.AWS_REGION }}
+          deployment_package: deploy/myapp.zip
+          use_existing_version_if_available: true
+
+      - name: Deploy to Elastic Beanstalk Production
+        if: github.ref == 'refs/heads/main'
+        uses: einaregilsson/beanstalk-deploy@v22
+        with:
+          aws_access_key: ${{ env.AWS_ACCESS_KEY }}
+          aws_secret_key: ${{ env.AWS_ACCESS_SECRET }}
+          application_name: 'myapp-prod'
+          environment_name: 'myapp-prod-env'
+          version_label: ${{ github.run_number }}
+          region: ${{ env.AWS_REGION }}
+          deployment_package: deploy/myapp.zip
+          use_existing_version_if_available: true
+```
+
+***- eb-deploy.yml 설명*** <br/>
+
+- `on`: GitHub Actions 워크플로우를 실행할 트리거(이벤트)를 지정.
+  - `push`: GitHub에 push 될 때 워크플로우 실행. push 외에도 pull_request, schedule, relese 등 있음. 
+    - `branches`: 어떤 브랜치에 이벤트가 일어날 때 실행 할 것인지를 지정. 여기서는 `main`, `develop` 브랜치 (필요하다면 `feature/**`도 추가).
+- `jobs`: GitHub Actions 워크플로우 내에서 실행할 작업 목록을 정의하는 부분. 각각의 step은 순차적으로 수행
+  - `deploy`: 어떤 플랫폼에서 배포할지 정의
+
+      <br/>
+  - 변경 된 step 설명 <br/>
+    - `Build and Tag Docker Image`: 현재 디렉터리를 빌드 컨텍스트로 하여 Docker 이미지를 빌드<br/>
+      - `if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'`: `main`, `develop` 브랜치에서만 실행 <br/>
+    - `Push Docker Image to ECR`: 빌드된 Docker 이미지를 AWS ECR에 푸시하여 저장소에 업로드 <br/>
+      - `if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'`: `main`, `develop` 브랜치에서만 실행 <br/>
+    - `Deploy to Elastic Beanstalk Staging`: 최종적으로 EB에 배포 (`staging` server)  <br/>
+      - `if: github.ref == 'refs/heads/develop'`: `develop` 브랜치일 경우 실행 <br/>
+    - `Deploy to Elastic Beanstalk Production`: 최종적으로 EB에 배포 (`production` server) <br/>
+      - `if: github.ref == 'refs/heads/main'`: `main` 브랜치일 경우 실행 <br/>
 <br/>
 
 # AWS ECS
