@@ -1851,14 +1851,34 @@ GitHub Actions를 이용해 Spring Boot 애플리케이션을 Docker 이미지�
 <details>
 <summary>EB에서 코드 에러 났을 때 에러 확인</summary>
 
-1. 서버 올리는데 에러 <br/>
-에러위치: /var/log/eb-engine.log
+1. `배포 에러`: Elastic Beanstalk의 배포 및 실행 로그 <br/>
+    EB 자체에서 배포와 관련된 이벤트를 기록. EB 컨테이너가 어떻게 실행됐는지 적용이 잘 됐는지, Docker Image 잘 가져왔는지 확인 <br/>
 
-2. 코드에러 <br/>
-EB > Environment > Logs
+    1-1. SSH 접속: EC2 로 이동 > 해당 EC2 선택 > 상단 Connect 선택 > EC2 Instance Connect 탭 > Username: root > Connect 선택 <br/>
+    1-2. 에러 확인
+      ```sh
+      cd /var/log
+      vi eb-engine.log
+      ```
+
+2. `코드에러` <br/>
+    2-1. EB > Environment > Logs<br/>
+
+3. `Spring Boot 애플리케이션 로그`<br/>
+    비지니스 로직 오류, HTTP 요청 오류, DB 연결 문제, 환경 변수 오류 등을 확인 <br/>
+
+    3-1. SSH 접속: EC2 로 이동 > 해당 EC2 선택 > 상단 Connect 선택 > EC2 Instance Connect 탭 > Username: root > Connect 선택 <br/>
+    3-2. Docker ID 확인
+      ```sh
+      docker ps # ps: Process Status
+      ```
+    3-3. 최신 100줄의 로그 확인
+      ```sh
+      docker logs <컨테이너_ID> -f --tail=100
+      ```
 </details> 
+<br/>
 
-// TODO: 이 부분 여기에 추가하는게 맞을까?
 ## GitHub 브랜치에 따라 워크플로우 실행
 Git Flow strategy에 따라서, main, develop, features 브랜치를 운영한다고 할 때 `eb-deploy.yml` 파일
 ```yml
