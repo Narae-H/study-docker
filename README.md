@@ -1578,6 +1578,7 @@ GitHub Actions를 통해 ECR, EB에 명령을 하고자 한다면 로그인 할 
     - **Permissions policies**: 아래 2개 권한 선택
       - AmazonEC2ContainerRegistryFullAccess (ECR 접근)
       - AdministratorAccess-AWSElasticBeanstalk 선택 (EB 배포)
+      - AmazonEC2FullAccess (EC2 인스턴스에 태그 추가할 수 있는 권한)
 5. `Step 3`. Review and create:
     - Tags: Name/eb-github-actions-deploy
 6. `Step 4`. Retrieve password:
@@ -1876,6 +1877,16 @@ GitHub Actions를 이용해 Spring Boot 애플리케이션을 Docker 이미지�
       ```sh
       docker logs <컨테이너_ID> -f --tail=100
       ```
+<br/>
+
+4. `Elastic Beanstalk logs` <br/>
+```sh
+# Elastic Beanstalk logs
+sudo cat /var/log/nginx/access.log 
+
+# Elastic Beanstalk logs: 4xx로 시작되는 에러 잡기
+sudo cat /var/log/nginx/access.log | grep " 4[0-9][0-9] "
+```
 </details> 
 <br/>
 
