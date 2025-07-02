@@ -1563,6 +1563,11 @@ Docker 이미지를 빌드는 과정에는 소스 코드를 복사하는 과정�
       - **Fleet composition**: On-Demand instance
       - **Architecture**: x86_64
       - **Instance types**: t3a.micro (싼거 아무거나 [인스턴스 가격표](https://aws.amazon.com/ec2/pricing/on-demand/)), 굳이 2개의 인스터스 필요없이 1개만 나두고 나머지 삭제해도 무방.
+    - **Load balancer type**
+      - Application load balancer, Dedicated
+    - **Liseners** -> skip! (나중에 변경 가능)
+    - **Processes** -> skip! (나중에 변경 가능)
+    - **Rules** -> skip! (나중에 변경 가능)
   - `Step 5`: Configure updates, monitoring, and logging - optional -> skip!
 4. 생생 된 Environment의 도메인 눌러서 실행해서 화면 제대로 뜨나 확인(정상적으로 설정됐다면 **Congratulations!** 뜸.)
 
